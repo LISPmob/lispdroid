@@ -149,6 +149,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
     lispd_pkt_map_register_t	       *mrp; 
     lispd_pkt_mapping_record_t	       *mr;
     lispd_pkt_lcaf_t                   *lcaf;
+    lispd_pkt_lcaf_addr_t              *lcaf_addr;
     lispd_pkt_nat_lcaf_t               *nat_lcaf;
     lispd_pkt_mapping_record_locator_t *loc_ptr;
     lispd_if_t                          *intf;
@@ -193,7 +194,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
 
         // AFI is double counted in the locator_t and lcaf_t, hence
         // the subtract.
-        mrp_len += (loc_count * (sizeof(lispd_pkt_nat_lcaf_t) +
+        mrp_len += (loc_count * (sizeof(lispd_pkt_nat_lcaf_t) + 3 * sizeof(lispd_pkt_lcaf_addr_t) +
                     (sizeof(lispd_pkt_lcaf_t) - sizeof(uint16_t))));
     }
 
@@ -308,7 +309,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
 
             lcaf->afi  = htons(LISP_AFI_LCAF);
             lcaf->type = LISP_LCAF_NAT;
-            lcaf->length = 4 + sizeof(uint16_t);
+            lcaf->length = 4 + 3 * sizeof(uint16_t);
             if (loc_addr.afi == AF_INET) {
                 lcaf->length += sizeof(struct in_addr);
             } else if (loc_addr.afi == AF_INET6) {
@@ -321,8 +322,9 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
             lcaf->length = htons(lcaf->length);
             nat_lcaf = (lispd_pkt_nat_lcaf_t *)lcaf->address;
             nat_lcaf->port = htons(intf->translated_encap_port);
-            nat_lcaf->afi =  htons(get_lisp_afi(loc_afi, &afi_len));
-            if ((len = copy_addr(nat_lcaf->address,
+            lcaf_addr = (lispd_pkt_lcaf_addr_t *)nat_lcaf->addresses;
+            lcaf_addr->afi =  htons(get_lisp_afi(loc_afi, &afi_len));
+            if ((len = copy_addr(lcaf_addr->address,
                                  &(loc_addr),
                                  loc_afi, 0)) == 0) {
                 log_msg(INFO, "locator (%s) has an unknown afi (%d)",
@@ -330,6 +332,15 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
                         ntohs(loc_ptr->locator_afi));
                 return(FALSE);
             }
+
+            /*
+             * NULL the private and NTR RLOC fields.
+             */
+            lcaf_addr = CO(lcaf_addr, sizeof(uint16_t) + len);
+            lcaf_addr->afi = 0;
+            lcaf_addr = CO(lcaf_addr, sizeof(uint16_t));
+            lcaf_addr->afi = 0;
+            len += 2 * sizeof(uint16_t);
         } else {
             loc_ptr->locator_afi = htons(get_lisp_afi(loc_afi, &afi_len));
             if ((len = copy_addr((void *)CO(loc_ptr, sizeof(lispd_pkt_mapping_record_locator_t)),

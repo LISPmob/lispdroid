@@ -1349,6 +1349,7 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
 {
     lispd_pkt_echo_reply_t *reply;
     lispd_pkt_nat_lcaf_t   *nat_lcaf;
+    lispd_pkt_lcaf_addr_t  *lcaf_addr;
     lispd_pkt_lcaf_t       *lcaf;
     lispd_if_t             *intf = if_list;
     uint16_t                translated_port = 0;
@@ -1387,11 +1388,12 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
                     lispd_config.local_data_port);
 
         translated_port = ntohs(nat_lcaf->port);
+        lcaf_addr = (lispd_pkt_lcaf_addr_t *)nat_lcaf->addresses;
 
-        if (ntohs(nat_lcaf->afi) == LISP_AFI_IP) {
-            memcpy(&reply_addr, nat_lcaf->address, sizeof(struct in_addr));
+        if (ntohs(lcaf_addr->afi) == LISP_AFI_IP) {
+            memcpy(&reply_addr, lcaf_addr->address, sizeof(struct in_addr));
         } else {
-            log_msg(ERROR, "    Unsupported LISP AFI %d in LISP LCAF", ntohs(nat_lcaf->afi));
+            log_msg(ERROR, "    Unsupported LISP AFI %d in LISP LCAF", ntohs(lcaf_addr->afi));
             return(FALSE);
         }
         break;
@@ -1482,16 +1484,17 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
  */
 int send_lisp_echo_request(lispd_if_t *intf)
 {
-    lispd_pkt_echo_t     *pkt;
-    lispd_pkt_lcaf_t     *lcaf;
-    lispd_pkt_nat_lcaf_t *nat_lcaf;
+    lispd_pkt_echo_t      *pkt;
+    lispd_pkt_lcaf_t      *lcaf;
+    lispd_pkt_nat_lcaf_t  *nat_lcaf;
+    lispd_pkt_lcaf_addr_t *lcaf_addr;
     struct sockaddr_in    map_server;
     int                   nbytes, size;
     char                  addr_buf[128];
 
     if (lispd_config.use_nat_lcaf) {
         size = sizeof(lispd_pkt_echo_t) + sizeof(lispd_pkt_lcaf_t) +
-               sizeof(lispd_pkt_nat_lcaf_t) + sizeof(struct in_addr); // XXX v4 only
+               sizeof(lispd_pkt_nat_lcaf_t) + 3 * sizeof(lispd_pkt_lcaf_addr_t); // XXX v4 only
     } else {
         size = sizeof(lispd_pkt_echo_t);
     }
@@ -1509,12 +1512,22 @@ int send_lisp_echo_request(lispd_if_t *intf)
     if (lispd_config.use_nat_lcaf) {
         lcaf = (lispd_pkt_lcaf_t *)pkt->data;
         lcaf->afi = htons(LISP_AFI_LCAF);
-        lcaf->length = htons(4 + sizeof(struct in_addr) + sizeof(uint16_t));
+        lcaf->length = htons(4 + 3 * sizeof(uint16_t));
         lcaf->flags = 0;
         lcaf->type = LISP_LCAF_NAT;
         nat_lcaf = (lispd_pkt_nat_lcaf_t *)lcaf->address;
         nat_lcaf->port = htons(lispd_config.local_control_port);
-        nat_lcaf->afi = 0;
+
+        /*
+         * Fill in NULL afi's for the three addresses
+         * (global, private and NTR RLOCs).
+         */
+        lcaf_addr = (lispd_pkt_lcaf_addr_t *)nat_lcaf->addresses;
+        lcaf_addr->afi = 0;
+        lcaf_addr = (lispd_pkt_lcaf_addr_t *)lcaf_addr->address;
+        lcaf_addr->afi = 0;
+        lcaf_addr = (lispd_pkt_lcaf_addr_t *)lcaf_addr->address;
+        lcaf_addr->afi = 0;
     }
     memset((char *)&map_server, 0, sizeof(struct sockaddr_in));
     map_server.sin_family = AF_INET;
