@@ -309,16 +309,16 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
     mrp->record_count              = 1;		/* XXX: assume 1 record */
     mrp->nonce                     = build_nonce((unsigned int)time(NULL));
     *nonce                         = mrp->nonce;
-    mrp->source_eid_afi            = htons(get_lisp_afi(eid_prefix->afi,NULL)); // XXX
+    mrp->source_eid_afi            = htons(get_lisp_afi(lispd_config.eid_address.afi, NULL)); // XXX
 
     /*
      * Source-EID address goes here.
      *
      *	point cur_ptr at where the variable length Source-EID 
-     *  address goes, namely, CO(mrp,sizeof(lispd_pkt_map_request_t))
+     *  address goes.
      */    
     cur_ptr = CO(mrp, sizeof(lispd_pkt_map_request_t));
-    if ((alen = copy_addr(cur_ptr,		
+    if ((alen = copy_addr(cur_ptr,
                           &lispd_config.eid_address,
                           lispd_config.eid_address.afi,
 			  0)) == 0) {

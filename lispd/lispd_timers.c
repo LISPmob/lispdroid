@@ -195,7 +195,7 @@ void handle_timers(void)
     }
 
     if (timercmp(&nowtime, &timers.smr_time, >) && (timers.smr_time.tv_sec != 0)) {
-        start_smr_traffic_monitor();
+      //  start_smr_traffic_monitor();
     }
 
     if (timercmp(&nowtime, &timers.gw_time, >) && (timers.gw_time.tv_sec != 0)) {

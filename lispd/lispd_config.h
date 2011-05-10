@@ -44,7 +44,7 @@ typedef struct {
     char                     rloc_probe_retries;
     lisp_addr_t              petr_addr;
     char                    *eid_interface;
-    lisp_addr_t             eid_address;
+    lisp_addr_t              eid_address;
 } lispd_config_t;
 
 extern lispd_config_t lispd_config;

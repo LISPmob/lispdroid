@@ -103,7 +103,7 @@ int copy_addr(void *a1, lisp_addr_t *a2, int afi, int convert)
             ((struct in_addr *) a1)->s_addr = a2->address.ip.s_addr;
         return(sizeof(struct in_addr));
     case AF_INET6:
-        memcpy(((struct in6_addr *) a1)->s6_addr,
+        memcpy(a1,
                a2->address.ipv6.s6_addr,
                sizeof(struct in6_addr));
         return(sizeof(struct in6_addr));

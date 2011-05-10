@@ -876,19 +876,23 @@ int create_loopback(lisp_addr_t *addr, char *name)
  */
 int install_default_route(lispd_if_t *intf, int cleanup)
 {
-    struct sockaddr_nl nladdr;
     struct nlmsghdr *nlh;
     struct rtmsg    *rtm;
     struct rtattr  *rta;
     int             rta_len = 0;
     char   sndbuf[4096];
-    char   rcvbuf[4096];
     char   addr_buf[128];
     char   addr_buf2[128];
-    int    readlen;
     int    retval;
-    struct nlmsghdr *rcvhdr;
     int    sockfd;
+
+    /*
+     * Scoped addresses take care of source preference for ipv6
+     */
+    if (lispd_config.eid_address.afi == AF_INET6) {
+        log_msg(INFO, "Skipping default route installation for ipv6");
+        return(TRUE);
+    }
 
     sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
 
@@ -1017,15 +1021,11 @@ int setup_eid(cfg_t *cfg)
 int add_loopback_address_v6(lisp_addr_t *addr)
 {
     unsigned int         loindex;
-    struct sockaddr_nl   nladdr;
     struct rtattr       *rta;
     struct ifaddrmsg    *ifa;
     struct nlmsghdr     *nlh;
-    int                  rta_len = 0;
     char                 sndbuf[4096];
-    int                  readlen;
     int                  retval;
-    struct nlmsghdr     *rcvhdr;
     int                  sockfd;
 
     if (!addr) {
@@ -1034,9 +1034,9 @@ int add_loopback_address_v6(lisp_addr_t *addr)
 
     loindex = if_nametoindex("lo");
 
-    if (loindex < 0) {
+    if (loindex == 0) {
         log_msg(ERROR, "add_loopback_address_v6: unable to proceed, cannot find index for interface lo");
-        retur(FALSE);
+        return(FALSE);
     }
 
     sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
