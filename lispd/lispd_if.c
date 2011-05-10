@@ -19,6 +19,7 @@
 #include "lispd_packets.h"
 #include "lispd_timers.h"
 #include "lispd_netlink.h"
+#include "lispd_util.h"
 
 extern int v4_receive_fd;
 extern int rtnetlink_fd;
@@ -829,30 +830,42 @@ int create_loopback(lisp_addr_t *addr, char *name)
     struct sockaddr_in *sp;
     int    netsock;
 
-    netsock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (netsock < 0) {
-        log_msg(INFO, "create_loopback: socket() %s", strerror(errno));
-        return(FALSE);
+    if (addr->afi == AF_INET) {
+        netsock = socket(addr->afi, SOCK_DGRAM, 0);
+        if (netsock < 0) {
+            log_msg(INFO, "create_loopback: socket() %s", strerror(errno));
+            return(FALSE);
+        }
+
+        /*
+         * Fill in the request
+         */
+        strcpy(ifr.ifr_name, name);
+
+        sp = (struct sockaddr_in *)&ifr.ifr_addr;
+        sp->sin_family = addr->afi;
+        sp->sin_addr = addr->address.ip;
+
+
+        // Set the address
+        ioctl(netsock, SIOCSIFADDR, &ifr);
+        sp->sin_addr.s_addr = 0xFFFFFFFF;
+
+        ioctl(netsock, SIOCSIFNETMASK, &ifr);
+
+        close(netsock);
+        return(TRUE);
+    } else if (addr->afi == AF_INET6) {
+
+        /*
+         * In this case, we just add the address
+         * to the default loopback interface, no
+         * neeed to create a new one.
+         */
+        return(add_loopback_address_v6(addr));
     }
-
-   /*
-    * Fill in the request
-    */
-    strcpy(ifr.ifr_name, name);
-    sp = (struct sockaddr_in *)&ifr.ifr_addr;
-    sp->sin_family = AF_INET;     // V4 only XXX
-    sp->sin_addr = addr->address.ip;
-
-    // Set the address
-    ioctl(netsock, SIOCSIFADDR, &ifr);
-
-    // The mask occupies the same place in the union.
-    sp->sin_addr.s_addr = 0xFFFFFFFF;
-
-    ioctl(netsock, SIOCSIFNETMASK, &ifr);
-
-    close(netsock);
-    return(TRUE);
+    log_msg(ERROR, "Unknown address family %d for EID in create_loopback()", addr->afi);
+    return(FALSE);
 }
 
 /*
@@ -983,13 +996,88 @@ int setup_eid(cfg_t *cfg)
         return(FALSE);
     }
 
-    lispd_config.eid_address.afi = AF_INET; // IPV4 only XXX
-    inet_pton(AF_INET, eid_str, &lispd_config.eid_address.address.ip);
+    lispd_config.eid_address.afi = get_afi(eid_str);
+    inet_pton(lispd_config.eid_address.afi, eid_str, &lispd_config.eid_address.address.ip);
 
     /*
      * Create loopback interface
      */
     create_loopback(&lispd_config.eid_address, cfg_getstr(cfg, "eid-interface"));
+    return(TRUE);
+}
+
+/*
+ * add_loopback_address_v6
+ *
+ * Installs a host route to the specified interface. This
+ * is specifically for ipv6, since we can have many
+ * loopback addresses hanging off lo without creating
+ * a new one.
+ */
+int add_loopback_address_v6(lisp_addr_t *addr)
+{
+    unsigned int         loindex;
+    struct sockaddr_nl   nladdr;
+    struct rtattr       *rta;
+    struct ifaddrmsg    *ifa;
+    struct nlmsghdr     *nlh;
+    int                  rta_len = 0;
+    char                 sndbuf[4096];
+    int                  readlen;
+    int                  retval;
+    struct nlmsghdr     *rcvhdr;
+    int                  sockfd;
+
+    if (!addr) {
+        return(FALSE);
+    }
+
+    loindex = if_nametoindex("lo");
+
+    if (loindex < 0) {
+        log_msg(ERROR, "add_loopback_address_v6: unable to proceed, cannot find index for interface lo");
+        retur(FALSE);
+    }
+
+    sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
+
+    if (sockfd < 0) {
+          log_msg(INFO, "Failed to connect to netlink socket for install_host_route()");
+        return(FALSE);
+    }
+
+    /*
+     * Build the command
+     */
+    memset(sndbuf, 0, 4096);
+    nlh = (struct nlmsghdr *)sndbuf;
+    nlh->nlmsg_len = NLMSG_LENGTH(sizeof(struct ifaddrmsg) + sizeof(struct rtattr) +
+                                  sizeof(struct in6_addr));
+    nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_REPLACE;
+    nlh->nlmsg_type = RTM_NEWADDR;
+    ifa = sndbuf + sizeof(struct nlmsghdr);
+
+    ifa->ifa_prefixlen = 128;
+    ifa->ifa_family = AF_INET6;
+    ifa->ifa_index  = loindex;
+    ifa->ifa_scope = RT_SCOPE_HOST;
+    rta = sndbuf + sizeof(struct nlmsghdr) + sizeof(struct ifaddrmsg);
+    rta->rta_type = IFA_LOCAL;
+
+    rta->rta_len = sizeof(struct rtattr) + sizeof(struct in6_addr);
+    memcpy(((char *)rta) + sizeof(struct rtattr), addr->address.ipv6.s6_addr,
+           sizeof(struct in6_addr));
+
+    retval = send(sockfd, sndbuf, nlh->nlmsg_len, 0);
+
+    if (retval < 0) {
+        log_msg(INFO, "add_loopback_address_v6: send() failed %s", strerror(errno));
+        close(sockfd);
+        return(FALSE);
+    }
+
+    log_msg(INFO, "added ipv6 EID to loopback.");
+    close(sockfd);
     return(TRUE);
 }
 
@@ -1006,7 +1094,6 @@ int install_host_route(lisp_addr_t *host, lispd_if_t *intf)
     struct rtattr  *rta;
     int             rta_len = 0;
     char   sndbuf[4096];
-    char   rcvbuf[4096];
     int    readlen;
     int    retval;
     struct nlmsghdr *rcvhdr;
@@ -1077,7 +1164,7 @@ int install_host_route(lisp_addr_t *host, lispd_if_t *intf)
     memset(&nladdr, 0, sizeof(nladdr));
     nladdr.nl_family = AF_NETLINK;
 
-    retval = send(sockfd, sndbuf, NLMSG_LENGTH(rta_len), 0);
+    retval = send(sockfd, sndbuf, NLMSG_LENGTH(rta_len), 0); // XXXX FIXME: Length looks wrong
 
     if (retval < 0) {
         log_msg(INFO, "install_hostroute: send() failed %s", strerror(errno));

@@ -435,7 +435,7 @@ int add_database_mapping(cfg_t	*dm)
 {
     char			*token = NULL;
     char			*eid;		/* save the eid_prefix here */
-    int				afi = AF_INET; // IPV4 only for now XXX
+    int				afi;
     uint32_t			flags = 0;
     patricia_node_t	        *node = NULL;
     lispd_locator_chain_t	*locator_chain;
@@ -456,6 +456,8 @@ int add_database_mapping(cfg_t	*dm)
     }
 
     eid = eid_prefix;		/* save this for later */
+
+    afi = get_afi(eid);
 
     /*
      *	find or make the node correspoding to the eid_prefix/length
