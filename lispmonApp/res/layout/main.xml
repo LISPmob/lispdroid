@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent" android:orientation="vertical">
+    <LinearLayout android:layout_width="match_parent" android:id="@+id/linearLayout1" android:orientation="vertical" android:layout_height="wrap_content">
+        <CheckBox android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/startStopCheckbox" android:text="@string/lispRunning"></CheckBox>
+    </LinearLayout>
+    <TableLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/tableLayout2">
+        <TableRow android:id="@+id/tableRow2" android:layout_width="wrap_content" android:layout_height="wrap_content">
+            <Button android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/showCacheButton" android:text="@string/showMapCacheString" android:layout_weight="1"></Button>
+            <Button android:layout_height="wrap_content" android:layout_width="wrap_content" android:id="@+id/pingButton" android:text="Ping" android:layout_weight="2.5"></Button>
+        </TableRow>
+    </TableLayout>
+    <TableLayout android:layout_height="wrap_content" android:id="@+id/tableLayout1" android:layout_width="match_parent">
+        <TableRow android:id="@+id/tableRow1" android:layout_height="wrap_content" android:layout_width="match_parent">
+            <Button android:layout_width="match_parent" android:text="Show Configuration" android:layout_height="wrap_content" android:layout_weight="1" android:id="@+id/showConfButton"></Button>
+            <Button android:layout_width="match_parent" android:text="@string/showLogString" android:id="@+id/showLogButton" android:layout_height="wrap_content" android:layout_gravity="right" android:layout_weight="1"></Button>
+        </TableRow>
+    </TableLayout>
+    <LinearLayout android:id="@+id/linearLayout2" android:baselineAligned="false" android:orientation="vertical" android:layout_width="wrap_content" android:layout_height="wrap_content">
+    </LinearLayout>
+    <ScrollView android:layout_height="wrap_content" android:id="@+id/scrollView2" android:layout_width="match_parent">
+        <TextView android:id="@+id/infoView" android:layout_width="match_parent" android:layout_height="match_parent" android:text="TextView" android:typeface="monospace" android:textSize="11sp" android:longClickable="true"></TextView>
+    </ScrollView>
+</LinearLayout>
