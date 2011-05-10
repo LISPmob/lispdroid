@@ -422,7 +422,8 @@ unsigned int lisp_output6(unsigned int hooknum,
   iph = ipv6_hdr(packet_buf);
   
 #ifdef DEBUG
-  printk(KERN_INFO "   Packet originally destined for %pI6\n", iph->daddr.s6_addr);
+  printk(KERN_INFO "   Packet originally destined for %pI6 from %pI6\n", iph->daddr.s6_addr,
+         iph->saddr.s6_addr);
 #endif
 
   /*
