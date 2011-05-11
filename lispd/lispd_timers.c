@@ -178,7 +178,7 @@ void handle_timers(void)
 
     if (timercmp(&nowtime, &timers.register_time, >) && (timers.register_time.tv_sec != 0)) {
         log_msg(INFO, "Map-register timer expired");
-        map_register(AF4_database);
+        map_register();
     }
 
     if (timercmp(&nowtime, &timers.request_time, >) && (timers.request_time.tv_sec != 0)) {

@@ -580,7 +580,7 @@ void handle_if_status_change(struct ifinfomsg *ifi)
      * Update our mappings
      */
     install_database_mappings();
-    map_register(AF4_database);
+    map_register();
 }
 
 /*
@@ -629,7 +629,7 @@ void handle_ip_address_change(struct ifaddrmsg *ifa, uint32_t addr)
      * Update our mappings
      */
     install_database_mappings();
-    map_register(AF4_database);
+    map_register();
 
     /*
      * Clear the map cache XXX Not final in draft yet
@@ -1448,7 +1448,7 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
                     if (is_nat_complete(intf) && (get_live_interface_count() == 1)) {
                         reconfigure_lisp_interfaces();
                         install_database_mappings();
-                        map_register(AF4_database);
+                        map_register();
                         set_timer(NATDetectRetry, NAT_PERIODIC_CHECK_TIME);
                     } else {
 

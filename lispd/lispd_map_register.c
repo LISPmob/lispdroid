@@ -127,6 +127,7 @@ int send_map_register(lispd_map_server_list_t  *ms,
         return(0);
     }
 
+    dump_message(mrp, mrp_len);
     if (nbytes != mrp_len) {
         log_msg(INFO,
                 "send_map_register: nbytes (%d) != mrp_len (%d)\n",
@@ -186,7 +187,6 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
                                                          * locator_chain->locator_count
 							 * locators
                                                          */
-
     /*
      * Adjust size if using LCAF addresses
      */
@@ -341,6 +341,11 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
             lcaf_addr = CO(lcaf_addr, sizeof(uint16_t));
             lcaf_addr->afi = 0;
             len += 2 * sizeof(uint16_t);
+
+            if (lispd_config.use_nat_lcaf) {
+                log_msg(INFO, "   Using NAT LCAF with translated port %d for locator",
+                        ntohs(nat_lcaf->port));
+            }
         } else {
             loc_ptr->locator_afi = htons(get_lisp_afi(loc_afi, &afi_len));
             if ((len = copy_addr((void *)CO(loc_ptr, sizeof(lispd_pkt_mapping_record_locator_t)),
@@ -355,11 +360,6 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
         log_msg(INFO, "Added %s with addr %s to map register",
                locator_chain_elt->locator_name,
                inet_ntop(loc_afi, &loc_addr.address.ip.s_addr, addr_str, 128));
-
-        if (lispd_config.use_nat_lcaf) {
-            log_msg(INFO, "   Using NAT LCAF with translated port %d for locator",
-                    ntohs(nat_lcaf->port));
-        }
 
 	/*
 	 * get the next locator in the chain and wind
@@ -377,17 +377,17 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
  *	map_server_register (tree)
  *
  */
-int map_register(patricia_tree_t *tree)
+int map_register(void)
 {
 
+    patricia_tree_t           *all_afi_dbs[2] = { AF4_database,
+                                                  AF6_database };
+    patricia_tree_t           *tree = NULL;
     lispd_map_server_list_t   *ms;
     lispd_pkt_map_register_t  *map_register_pkt;
     patricia_node_t	      *node;
     lispd_locator_chain_t     *locator_chain;
-    lispd_locator_chain_elt_t *locator_chain_elt;
-    uint8_t		      *packet;
-    int			       packet_len = 0;
-    int			       retval     = 0;
+    int                        afi_count = 0;
 
     /*
      * Make sure even if we fail, we come back again.
@@ -399,37 +399,38 @@ int map_register(patricia_tree_t *tree)
         return(0);
     }
 
-    if (!tree)
-        return(0);
-
-    PATRICIA_WALK(tree->head, node) {
-        locator_chain = ((lispd_locator_chain_t *)(node->data));
-        if (locator_chain) {
-            if ((map_register_pkt =
-                 build_map_register_pkt(locator_chain)) == NULL) {
-                log_msg(INFO, "Couldn't build map register packet");
-                return(0);
-            }
-
-            /*
-             *	for each map server, send a register, and if verify
-             *	send a map-request for our eid prefix
-             */
-            ms = lispd_config.map_servers;
-
-            while (ms) {
-                if (!send_map_register(ms,
-                                       map_register_pkt,
-                                       locator_chain->mrp_len)) {
-                    log_msg(INFO,
-                           "Couldn't send map-register for %s",
-                           locator_chain->eid_name);
+    while (afi_count < 2) {
+        tree = all_afi_dbs[afi_count];
+        PATRICIA_WALK(tree->head, node) {
+            locator_chain = ((lispd_locator_chain_t *)(node->data));
+            if (locator_chain) {
+                if ((map_register_pkt =
+                     build_map_register_pkt(locator_chain)) == NULL) {
+                    log_msg(INFO, "Couldn't build map register packet");
+                    return(0);
                 }
-                ms = ms->next;
+
+                /*
+                 * for each map server, send a register, and if verify
+                 * send a map-request for our eid prefix
+                 */
+                ms = lispd_config.map_servers;
+
+                while (ms) {
+                    if (!send_map_register(ms,
+                                           map_register_pkt,
+                                           locator_chain->mrp_len)) {
+                        log_msg(INFO,
+                                "Couldn't send map-register for %s",
+                                locator_chain->eid_name);
+                    }
+                    ms = ms->next;
+                }
+                free(map_register_pkt);
             }
-            free(map_register_pkt);
-        }
-    } PATRICIA_WALK_END;
+        } PATRICIA_WALK_END;
+        afi_count++;
+    }
 
     log_msg(INFO, "Map-register sent, interval reset");
     return(1);

@@ -125,6 +125,7 @@ void dump_info_file(void) {
     fprintf(fp, "\n");
     fprintf(fp, "Locator(s):\n");
     dump_database(AF4_database, AF_INET, fp);
+    dump_database(AF6_database, AF_INET6, fp);
     fclose(fp);
 }
 
@@ -275,11 +276,8 @@ int main(int argc, char **argv)
     if (!install_map_cache_entries())
         log_msg(INFO, "Could not install static map-cache entries");
 #endif
-    if (!map_register(AF6_database))
-        log_msg(INFO, "Could not map register AF_INET6 with Map Servers");
-
-    if (!map_register(AF4_database))
-        log_msg(INFO, "Could not map register AF_INET with Map Servers");
+    if (!map_register())
+        log_msg(INFO, "Could not map register.");
 
     set_timer(RLOCProbeScan, RLOC_PROBE_CHECK_INTERVAL);
 

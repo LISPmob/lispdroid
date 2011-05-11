@@ -441,7 +441,6 @@ int add_database_mapping(cfg_t	*dm)
     lispd_locator_chain_t	*locator_chain;
     lispd_locator_chain_elt_t	*locator_chain_elt;
     lispd_if_t                  *ifp;
-    int                          num_locs;
     char                         addr_buf[128];
     char   *eid_prefix        = cfg_getstr(dm, "eid-prefix");
 

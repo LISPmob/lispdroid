@@ -201,7 +201,6 @@ int install_database_mappings_afi(patricia_tree_t *tree)
 {
     patricia_node_t		*node;
     lispd_locator_chain_t	*locator_chain;
-    lispd_locator_chain_elt_t	*locator_chain_elt;
     int			        retval = 1;
    
     if (!tree)
