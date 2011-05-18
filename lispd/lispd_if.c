@@ -886,14 +886,6 @@ int install_default_route(lispd_if_t *intf, int cleanup)
     int    retval;
     int    sockfd;
 
-    /*
-     * Scoped addresses take care of source preference for ipv6
-     */
-    if (lispd_config.eid_address.afi == AF_INET6) {
-        log_msg(INFO, "Skipping default route installation for ipv6");
-        return(TRUE);
-    }
-
     sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
 
     if (sockfd < 0) {
@@ -916,7 +908,11 @@ int install_default_route(lispd_if_t *intf, int cleanup)
      */
     rta = (struct rtattr *)((char *)rtm + sizeof(struct rtmsg));
     rta->rta_type = RTA_DST;
-    rta->rta_len = sizeof(struct rtattr) + sizeof(struct in_addr);
+    if (lispd_config.eid_address.afi == AF_INET) {
+        rta->rta_len = sizeof(struct rtattr) + sizeof(struct in_addr);
+    } else {
+        rta->rta_len = sizeof(struct rtattr) + sizeof(struct in6_addr);
+    }
     // Address is already zeroed
     rta_len += rta->rta_len;
 
@@ -931,31 +927,39 @@ int install_default_route(lispd_if_t *intf, int cleanup)
     rta_len += rta->rta_len;
 
     /*
-     * Add the gateway
+     * For IPv4 only, add the default gateway as well as the
+     * source preference. For IPv6 in IPv4 these items are not
+     * necessary. TBD: What happens with IPv6 in IPv6 or IPv4 in IPv6?
      */
-    rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
-    rta->rta_type = RTA_GATEWAY;
-    rta->rta_len = sizeof(struct rtattr) + sizeof(intf->default_gw.address.ip); // if_index
-    memcpy(((char *)rta) + sizeof(struct rtattr), &intf->default_gw.address.ip,
-           sizeof(intf->default_gw.address.ip));
-    rta_len += rta->rta_len;
+    if (lispd_config.eid_address.afi == AF_INET) {
 
-    /*
-     * Add the source
-     */
-    if (!cleanup) {
+        /*
+         * Add the gateway
+         */
         rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
-        rta->rta_type = RTA_PREFSRC;
-        rta->rta_len = sizeof(struct rtattr) + sizeof(lispd_config.eid_address.address.ip); // if_index
-        memcpy(((char *)rta) + sizeof(struct rtattr), &lispd_config.eid_address.address.ip,
-               sizeof(lispd_config.eid_address.address.ip));
+        rta->rta_type = RTA_GATEWAY;
+        rta->rta_len = sizeof(struct rtattr) + sizeof(intf->default_gw.address.ip); // if_index
+        memcpy(((char *)rta) + sizeof(struct rtattr), &intf->default_gw.address.ip,
+               sizeof(intf->default_gw.address.ip));
         rta_len += rta->rta_len;
+
+        /*
+         * Add the source
+         */
+        if (!cleanup) {
+            rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
+            rta->rta_type = RTA_PREFSRC;
+            rta->rta_len = sizeof(struct rtattr) + sizeof(lispd_config.eid_address.address.ip); // if_index
+            memcpy(((char *)rta) + sizeof(struct rtattr), &lispd_config.eid_address.address.ip,
+                   sizeof(lispd_config.eid_address.address.ip));
+            rta_len += rta->rta_len;
+        }
     }
     nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
     nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_REPLACE;
     nlh->nlmsg_type =  RTM_NEWROUTE;
 
-    rtm->rtm_family = AF_INET;
+    rtm->rtm_family = lispd_config.eid_address.afi;
     rtm->rtm_table = RT_TABLE_MAIN;
     rtm->rtm_protocol = RTPROT_STATIC;
     rtm->rtm_scope = RT_SCOPE_UNIVERSE;
@@ -972,7 +976,7 @@ int install_default_route(lispd_if_t *intf, int cleanup)
     log_msg(INFO, "Installed default route via %s (%s) using our EID (%s) as source",
            intf->name, inet_ntop(AF_INET, &intf->address.address.ip,
                                  addr_buf, 128),
-           inet_ntop(AF_INET, &lispd_config.eid_address.address.ip,
+           inet_ntop(lispd_config.eid_address.afi, &lispd_config.eid_address.address.ip,
                      addr_buf2, 128));
     close(sockfd);
     return(TRUE);
