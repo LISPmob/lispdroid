@@ -21,7 +21,7 @@
 #include "packettypes.h"
 
 #define DEBUG 
-//#define DEBUG_PACKETS
+#define DEBUG_PACKETS
 #define NEW_KERNEL
 
 extern lisp_globals globals;
@@ -422,12 +422,18 @@ unsigned int lisp_output6(unsigned int hooknum,
   iph = ipv6_hdr(packet_buf);
   
 #ifdef DEBUG
-  printk(KERN_INFO "   Packet originally destined for %pI6 from %pI6\n", iph->daddr.s6_addr,
+  printk(KERN_INFO "   Output packet originally destined for %pI6 from %pI6\n", iph->daddr.s6_addr,
          iph->saddr.s6_addr);
 #endif
 
   /*
    * Sanity check the inner packet XXX
+   */
+
+  /*
+   * Eventually, when supporting ipv6/ipv6 or v4 or v6, we
+   * will need to escape LISP control messages, like in lisp_output4.
+   * XXX
    */
 
   /*
@@ -444,7 +450,7 @@ unsigned int lisp_output6(unsigned int hooknum,
    * Check status of returned entry XXX (requires extension
    * of above function).
    */
-  if (retval == 0 || !eid_entry->locator_list) {
+  if (retval == 0 || !eid_entry->count) {
 
     printk(KERN_INFO "No EID mapping found, notifying lispd...\n");
     send_cache_miss_notification(dst_addr, AF_INET6);
@@ -452,7 +458,12 @@ unsigned int lisp_output6(unsigned int hooknum,
   }
 
   /*
-   * Get the first locator for now... sync up with output4 XXX
+   * Mark that traffic has been received.
+   */
+  eid_entry->active_within_period = 1;
+
+  /*
+   * Get the first locator for now... sync up with output4 to use hash XXX
    */
   if (!eid_entry->locator_list[0]) {
     printk(KERN_INFO " No suitable locators.\n");
@@ -476,6 +487,8 @@ unsigned int lisp_output6(unsigned int hooknum,
           printk(KERN_INFO "   Using locator address: %pI6\n", locator_addr.address.ipv6.s6_addr);
       }
   }
+
+  eid_entry->locator_list[0]->data_packets_out++;
 
   /* 
    * In all liklihood we've disposed of the orignal skb
