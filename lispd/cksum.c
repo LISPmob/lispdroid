@@ -66,7 +66,6 @@ uint16_t udp_ipv4_checksum(const void	*buff,
 	sum += *((uint8_t *)buf);
  
     /* Add the pseudo-header */
-
     sum += *(ip_src++);
     sum += *ip_src;
  
@@ -77,12 +76,10 @@ uint16_t udp_ipv4_checksum(const void	*buff,
     sum += htons(length);
  
     /* Add the carries */
-
     while (sum >> 16)
 	sum = (sum & 0xFFFF) + (sum >> 16);
  
     /* Return the one's complement of sum */
-
     return ((uint16_t)(~sum));
 }
 
@@ -97,9 +94,52 @@ uint16_t udp_ipv6_checksum(const void	*buff,
                            struct in6_addr src,
                            struct in6_addr dest)
 {
+    const uint16_t *buf	   = buff;
+    uint32_t       length  = len;
+    uint32_t       checksum = 0, addr = 0;
 
-    return (0);
-}
+    while (length > 1) {
+        checksum += *buf++;
+        if (checksum & 0x80000000)
+            checksum = (checksum & 0xFFFF) + (checksum >> 16);
+        length -= 2;
+    }
+
+    /* Add the padding if the packet length is odd */
+
+    if (length & 1)
+        checksum += *((uint8_t *)buf);
+
+    /*
+       * Add in pseudo-header fields.
+       */
+    addr = src.s6_addr32[0];
+    checksum += ((addr >> 16) & 0xffff) + (addr & 0xffff);
+    addr = src.s6_addr32[1];
+    checksum += ((addr >> 16) & 0xffff) + (addr & 0xffff);
+    addr = src.s6_addr32[2];
+    checksum += ((addr >> 16) & 0xffff) + (addr & 0xffff);
+    addr = src.s6_addr32[3];
+    checksum += ((addr >> 16) & 0xffff) + (addr & 0xffff);
+
+    addr = dest.s6_addr32[0];
+    checksum += ((addr >> 16) & 0xffff) + (addr & 0xffff);
+    addr = dest.s6_addr32[1];
+    checksum += ((addr >> 16) & 0xffff) + (addr & 0xffff);
+    addr = dest.s6_addr32[2];
+    checksum += ((addr >> 16) & 0xffff) + (addr & 0xffff);
+    addr = dest.s6_addr32[3];
+    checksum += ((addr >> 16) & 0xffff) + (addr & 0xffff);
+
+    checksum += htons(IPPROTO_UDP);
+    checksum += htons(len);
+
+    /*
+     * Add in carry.
+     */
+    checksum = ((checksum >> 16) & 0xffff) + (checksum & 0xffff);
+    return(~checksum & 0xffff);
+  }
 
 /*
  *	upd_checksum

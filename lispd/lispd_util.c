@@ -393,7 +393,7 @@ struct udphdr *build_ip_header(void *cur_ptr, lisp_addr_t *src,
         ip6h->ip6_hops = 255;
         ip6h->ip6_vfc  = (IP6VERSION << 4);
         ip6h->ip6_nxt  = IPPROTO_UDP;
-        ip6h->ip6_plen = htons(ip_len);
+        ip6h->ip6_plen = htons(ip_len - sizeof(struct ip6_hdr)); // Don't include header length
         memcpy(ip6h->ip6_src.s6_addr,
                src->address.ipv6.s6_addr,
                sizeof(struct in6_addr));

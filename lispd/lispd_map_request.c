@@ -157,19 +157,19 @@ int choose_request_addresses(request_type_e type,
          * source address.
          */
         if (curr_if->nat_type == NATOff) {
-            *src_addr = &curr_if->address;
+            *rloc_addr = &curr_if->address;
         } else {
             if (is_nat_complete(curr_if)) {
-                *src_addr = &curr_if->nat_address;
+               *rloc_addr = &curr_if->nat_address;
             } else {
                 log_msg(INFO, "Can't send ecm: interace %s has incomplete NAT translation",
                         curr_if->name);
                 return(FALSE);
             }
         }
-        *rloc_addr = *src_addr;
 
-        memcpy(target, eid_prefix, sizeof(lisp_addr_t));
+        *src_addr = &lispd_config.eid_address;
+        copy_addr(target, eid_prefix, eid_prefix->afi, 0);
         break;
 
    case SMR:
@@ -235,18 +235,26 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
         return(0);
     }
 
+    // XXX note: src_addr has overloaded semantics between normal requests (that are
+    // ECM'd) and SMR/RLOC-probes. We need to sort this out especially in the dual stack case.
+    // perhaps add a src_eid to choose_request_address, choose the EID based on dest EID.
+
     /*
      * caclulate sizes of interest
      */
-    if ((my_addr_len = get_addr_len(src_addr->afi)) == 0) {
+    if ((my_addr_len = get_addr_len(rloc_addr->afi)) == 0) {
+        log_msg(ERROR, "Failed to determine address length for ITR-rloc addr");
         return(0);
     }
+
     if ((ip_header_len = get_ip_header_len(src_addr->afi)) == 0) {
+        log_msg(ERROR, "Failed to determine IP header length given source addr");
         return(0);
     }
+
     udp_len = sizeof(struct udphdr)                       + /* udp header */
         sizeof(lispd_pkt_map_request_t)                   + /* map request */
-        eid_len                                           + /* source eid */
+        eid_len                                           + /* source eid should probably differ from the other eid_len */
         sizeof(lispd_pkt_map_request_itr_rloc_t)          + /* IRC = 1 */
         my_addr_len                                       + /* ITR RLOC */
         sizeof(lispd_pkt_map_request_eid_prefix_record_t) +
@@ -452,6 +460,8 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
 	       eid_prefix_length);
         return(0);
     }
+
+    dump_message(packet, len);
 
     // Use first map-resolver for now. XXX
     if (!send_map_request(packet, len, lispd_config.map_resolvers->address)) {
