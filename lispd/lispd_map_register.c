@@ -83,8 +83,6 @@ int send_map_register(lispd_map_server_list_t  *ms,
     struct sockaddr_in   map_server;
     int			nbytes;
     unsigned  int	md_len;
-    struct sockaddr_in	me;
-    struct sockaddr_in	from;
 
     /*
      * Fill in proxy_reply and compute the HMAC with SHA-1. Have to
@@ -127,7 +125,6 @@ int send_map_register(lispd_map_server_list_t  *ms,
         return(0);
     }
 
-    dump_message(mrp, mrp_len);
     if (nbytes != mrp_len) {
         log_msg(INFO,
                 "send_map_register: nbytes (%d) != mrp_len (%d)\n",

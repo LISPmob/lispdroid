@@ -106,7 +106,8 @@ int handle_lispd_config_file(void)
         CFG_BOOL("use-ms-as-petr",      cfg_false, CFGF_NONE),
         CFG_STR("petr-address",         0, CFGF_NONE),
         CFG_STR("eid-interface",        "lo:1", CFGF_NONE),
-        CFG_STR("eid-address",          0, CFGF_NONE),
+        CFG_STR("eid-address-ipv4",          0, CFGF_NONE),
+        CFG_STR("eid-address-ipv6",          0, CFGF_NONE),
         CFG_SEC("interface", if_opts, CFGF_MULTI),
 	CFG_END()
     };

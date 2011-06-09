@@ -43,7 +43,8 @@ typedef struct {
     int                      rloc_probe_interval; /* 0 means do not RLOC-probe */
     char                     rloc_probe_retries;
     lisp_addr_t              petr_addr;
-    lisp_addr_t              eid_address;
+    lisp_addr_t              eid_address_v4;  /* AF of 0 means unset */
+    lisp_addr_t              eid_address_v6;  /* ""                  */
 } lispd_config_t;
 
 extern lispd_config_t lispd_config;

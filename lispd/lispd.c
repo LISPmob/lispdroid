@@ -88,10 +88,17 @@ void dump_info_file(void) {
     }
 
     fprintf(fp, "Version:         %d.%d.%d\n", MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
-    fprintf(fp, "Device EID:      %s\n", inet_ntop(lispd_config.eid_address.afi,
-                                                    &lispd_config.eid_address.address,
-                                                    addr_buf, 128));
-
+    fprintf(fp, "Device EID(s):      ");
+    if (lispd_config.eid_address_v4.afi) {
+        fprintf(fp, "%s\n", inet_ntop(AF_INET,
+                                  &lispd_config.eid_address_v4.address,
+                                  addr_buf, 128));
+    }
+    if (lispd_config.eid_address_v6.afi) {
+        fprintf(fp, "%s\n", inet_ntop(AF_INET6,
+                                  lispd_config.eid_address_v6.address.ipv6.s6_addr,
+                                  addr_buf, 128));
+    }
 
     fprintf(fp, "Map Server(s):   ");
     ms = lispd_config.map_servers;

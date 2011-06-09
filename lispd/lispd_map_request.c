@@ -129,12 +129,12 @@ uint8_t *encapsulate_control_msg(uint8_t *original_msg,
 int choose_request_addresses(request_type_e type,
                              lisp_addr_t *eid_prefix,
                              lisp_addr_t **src_addr,
+                             lisp_addr_t **src_eid,
                              lisp_addr_t *target,
                              lisp_addr_t **rloc_addr,
                              lisp_addr_t  *receiver)
 {
     lispd_if_t                                  *curr_if;
-    lispd_if_t                                  *oif;
 
     curr_if = get_primary_interface();
 
@@ -162,13 +162,22 @@ int choose_request_addresses(request_type_e type,
             if (is_nat_complete(curr_if)) {
                *rloc_addr = &curr_if->nat_address;
             } else {
-                log_msg(INFO, "Can't send ecm: interace %s has incomplete NAT translation",
+                log_msg(INFO, "Can't send ecm map-request: interface %s has incomplete NAT translation",
                         curr_if->name);
                 return(FALSE);
             }
         }
 
-        *src_addr = &lispd_config.eid_address;
+        if (eid_prefix->afi == AF_INET) {
+            *src_addr = &lispd_config.eid_address_v4;
+            *src_eid  = &lispd_config.eid_address_v4;
+        } else if (eid_prefix->afi == AF_INET6) {
+            *src_addr = &lispd_config.eid_address_v6;
+            *src_eid  = &lispd_config.eid_address_v6;
+        } else {
+            log_msg(ERROR, "Can't send map-request: unknown EID AFI %d", eid_prefix->afi);
+            return(FALSE);
+        }
         copy_addr(target, eid_prefix, eid_prefix->afi, 0);
         break;
 
@@ -179,6 +188,14 @@ int choose_request_addresses(request_type_e type,
          * Don't use the mapping system, go native.
          */
         *src_addr = &curr_if->address;
+        if (eid_prefix->afi == AF_INET) {
+            *src_eid  = &lispd_config.eid_address_v4;
+        } else if (eid_prefix->afi == AF_INET6) {
+            *src_eid  = &lispd_config.eid_address_v6;
+        } else {
+            log_msg(ERROR, "Can't send SMR/RP map-request: unknown EID AFI %d", eid_prefix->afi);
+            return(FALSE);
+        }
 
         /*
          * If nat is enabled, use the global locator, not the interface address.
@@ -192,6 +209,8 @@ int choose_request_addresses(request_type_e type,
         break;
 
     default:
+        log_msg(ERROR, "choose_request_addresses: Unknown map-request type %d", type);
+        return(FALSE);
         break;
     }
     return(TRUE);
@@ -207,6 +226,7 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
 {
     struct udphdr				*udph;
     lisp_addr_t				        *src_addr;
+    lisp_addr_t                                 *src_eid;
     lisp_addr_t                                 *rloc_addr;
     lisp_addr_t                                  target;
     uint8_t				        *tmp, *packet;
@@ -216,8 +236,9 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
     void					*cur_ptr;
     void					*iphptr;	/* v4 or v6 */
 
-    uint16_t					udpsum               = 0;
+    uint16_t					udpsum              = 0;
     uint16_t					eid_afi             = 0;
+    int                                         src_eid_len         = 0;
     int						packet_len          = 0;
     int						eid_len             = 0;
     int						ip_len              = 0;
@@ -229,15 +250,13 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
     eid_afi = get_lisp_afi(eid_prefix->afi, &eid_len);
 
     if (!choose_request_addresses(type, eid_prefix,
-                                  &src_addr, &target,
+                                  &src_addr, &src_eid, &target,
                                   &rloc_addr, receiver)) {
         log_msg(ERROR, "Unable to choose source/rloc/target addresses for request.");
         return(0);
     }
 
-    // XXX note: src_addr has overloaded semantics between normal requests (that are
-    // ECM'd) and SMR/RLOC-probes. We need to sort this out especially in the dual stack case.
-    // perhaps add a src_eid to choose_request_address, choose the EID based on dest EID.
+    get_lisp_afi(src_eid->afi, &src_eid_len);
 
     /*
      * caclulate sizes of interest
@@ -254,11 +273,11 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
 
     udp_len = sizeof(struct udphdr)                       + /* udp header */
         sizeof(lispd_pkt_map_request_t)                   + /* map request */
-        eid_len                                           + /* source eid should probably differ from the other eid_len */
+        src_eid_len                                       + /* len of source EID */
         sizeof(lispd_pkt_map_request_itr_rloc_t)          + /* IRC = 1 */
-        my_addr_len                                       + /* ITR RLOC */
+        my_addr_len                                       + /* len of ITR RLOC */
         sizeof(lispd_pkt_map_request_eid_prefix_record_t) +
-        eid_len;					    /* EID prefix */
+        eid_len;					    /* len of EID prefix */
 
     ip_len     = ip_header_len + udp_len;
     packet_len = ip_len;
@@ -317,7 +336,7 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
     mrp->record_count              = 1;		/* XXX: assume 1 record */
     mrp->nonce                     = build_nonce((unsigned int)time(NULL));
     *nonce                         = mrp->nonce;
-    mrp->source_eid_afi            = htons(get_lisp_afi(lispd_config.eid_address.afi, NULL)); // XXX
+    mrp->source_eid_afi            = htons(get_lisp_afi(src_eid->afi, NULL)); // XXX
 
     /*
      * Source-EID address goes here.
@@ -327,8 +346,8 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
      */    
     cur_ptr = CO(mrp, sizeof(lispd_pkt_map_request_t));
     if ((alen = copy_addr(cur_ptr,
-                          &lispd_config.eid_address,
-                          lispd_config.eid_address.afi,
+                          src_eid,
+                          src_eid->afi,
 			  0)) == 0) {
         free(packet);
 	return(0);
@@ -460,8 +479,6 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
 	       eid_prefix_length);
         return(0);
     }
-
-    dump_message(packet, len);
 
     // Use first map-resolver for now. XXX
     if (!send_map_request(packet, len, lispd_config.map_resolvers->address)) {
