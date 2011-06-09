@@ -238,6 +238,7 @@ int lookup_eid_db_v4_exact(int eid, int prefixlen, lisp_database_entry_t **entry
   result = patricia_search_exact(AF4_eid_db, &prefix);
   if (!result) {
     spin_unlock_bh(&table_lock);
+    *entry = NULL;
     return(0);
   }
 
@@ -422,7 +423,7 @@ void add_eid_db_entry(lisp_db_add_msg_t *entry)
 
       memset(db_entry, 0, sizeof(lisp_database_entry_t));
       if (afi == AF_INET) {
-          db_entry->eid_prefix.address.ip.s_addr    = entry->eid_prefix.address.ip.s_addr;
+          db_entry->eid_prefix.address.ip.s_addr = entry->eid_prefix.address.ip.s_addr;
       } else {
           memcpy(&db_entry->eid_prefix, &entry->eid_prefix, sizeof(lisp_addr_t));
       }
