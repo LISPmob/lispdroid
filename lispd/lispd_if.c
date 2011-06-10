@@ -1097,7 +1097,7 @@ int setup_eid(cfg_t *cfg)
     v4_eid_str = cfg_getstr(cfg, "eid-address-ipv4");
     v6_eid_str = cfg_getstr(cfg, "eid-address-ipv6");
 
-    if (!(v6_eid_str && v4_eid_str)) {
+    if (!(v6_eid_str || v4_eid_str)) {
         log_msg(ERROR, "Configuration error: at least one ipv4 or ipv6 EID must be specified.");
         return(FALSE);
     }

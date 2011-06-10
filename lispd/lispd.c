@@ -88,14 +88,14 @@ void dump_info_file(void) {
     }
 
     fprintf(fp, "Version:         %d.%d.%d\n", MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
-    fprintf(fp, "Device EID(s):      ");
+    fprintf(fp, "Device EID(s):   ");
     if (lispd_config.eid_address_v4.afi) {
         fprintf(fp, "%s\n", inet_ntop(AF_INET,
                                   &lispd_config.eid_address_v4.address,
                                   addr_buf, 128));
     }
     if (lispd_config.eid_address_v6.afi) {
-        fprintf(fp, "%s\n", inet_ntop(AF_INET6,
+        fprintf(fp, "                 %s\n", inet_ntop(AF_INET6,
                                   lispd_config.eid_address_v6.address.ipv6.s6_addr,
                                   addr_buf, 128));
     }
@@ -130,6 +130,9 @@ void dump_info_file(void) {
         mr = mr->next;
     }
     fprintf(fp, "\n");
+    fprintf(fp, "Configured Interface(s):\n");
+    dump_interfaces(fp);
+
     fprintf(fp, "Locator(s):\n");
     dump_database(AF4_database, AF_INET, fp);
     dump_database(AF6_database, AF_INET6, fp);

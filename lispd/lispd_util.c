@@ -518,6 +518,7 @@ void dump_database_entry(lispd_locator_chain_t *chain, lispd_locator_chain_elt_t
     int              afi; 
     char             eid[128];
     char             rloc[128];
+
     char             buf[128];
 
     afi = chain->eid_prefix.afi;
@@ -649,6 +650,22 @@ void dump_map_cache(void)
 	       (map_cache_entry->how_learned == STATIC_MAP_CACHE_ENTRY)
 	       ? "static" : "dynamic");
         map_cache = map_cache->next;
+    }
+}
+
+void dump_interfaces(FILE *fp)
+{
+    lispd_if_t *if_list;
+    char addrstr[128];
+
+    if_list = get_interface_list();
+
+    while (if_list) {
+        inet_ntop(if_list->address.afi, &if_list->address.address, addrstr, 128);
+        fprintf(fp, "  %6s: %4s, %15s%s, pref: %2d\n",
+                if_list->name, (if_list->flags & IFF_UP) ? "up" : "down", addrstr,
+                (if_list->nat_type != NATOff) ? "(N)" : "", if_list->dev_prio);
+        if_list = if_list->next_if;
     }
 }
 
