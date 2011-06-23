@@ -94,6 +94,7 @@ int handle_lispd_config_file(void)
     };
 
     cfg_opt_t opts[] = {
+        CFG_BOOL("use-nat-tunneling", 0, CFGF_NONE),
 	CFG_SEC("database-mapping",	mapping_opts, CFGF_MULTI),
 	CFG_SEC("static-map-cache",	mapping_opts, CFGF_MULTI),
 	CFG_SEC("map-server",		map_server_opts, CFGF_MULTI),
@@ -135,6 +136,17 @@ int handle_lispd_config_file(void)
         lispd_config.rloc_probe_retries = ret;
     if ((ret = cfg_getint(cfg, "rloc-probe-interval")))
         lispd_config.rloc_probe_interval = ret;
+    if ((ret = cfg_getint(cfg, "use-nat-tunneling"))) {
+        lispd_config.use_nat_lcaf = TRUE;
+        lispd_config.local_control_port = LISP_LOCAL_CONTROL_PORT;
+        log_msg(INFO, "Will use NAT tunneling LCAF format with local port %d",
+                lispd_config.local_control_port);
+    } else {
+        lispd_config.use_nat_lcaf = FALSE;
+        lispd_config.local_control_port = LISP_CONTROL_PORT;
+        log_msg(INFO, "Not using NAT tunneling, control port is %d",
+                lispd_config.local_control_port);
+    }
 
     cfg_getbool(cfg, "debug") ? (lispd_config.debug = 1) : (lispd_config.debug = 0);
 

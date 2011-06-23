@@ -531,18 +531,19 @@ void dump_database_entry(lispd_locator_chain_t *chain, lispd_locator_chain_elt_t
                   &(db_entry->locator_addr.address),
                   rloc, 128);
     } else {
-        if (!db_entry->interface->nat_type != NATOff) {
-            if (is_nat_complete(db_entry->interface)) {
-                inet_ntop(db_entry->interface->nat_address.afi,
-                          &db_entry->interface->nat_address,
-                          rloc, 128);
-            } else {
-                sprintf(rloc, "No Address");
-            }
+        if (db_entry->interface->nat_type == NATOff) {
+        inet_ntop(db_entry->interface->address.afi,
+                  &db_entry->interface->address,
+                  rloc, 128);
         } else {
-            inet_ntop(db_entry->interface->address.afi,
-                      &db_entry->interface->address,
-                      rloc, 128);
+    if (is_nat_complete(db_entry->interface)) {
+        inet_ntop(db_entry->interface->nat_address.afi,
+                  &db_entry->interface->nat_address,
+                  rloc, 128);
+    } else {
+        sprintf(rloc, "No Address");
+    }
+
         }
     }
     if (db_entry->locator_type == DYNAMIC_LOCATOR)
