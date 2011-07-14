@@ -128,7 +128,7 @@ int lookup_eid_in_db(uint16_t eid_afi, uint32_t eid, lispd_locator_chain_t **loc
  * find_eid_in_datacache
  *
  */
-int find_eid_in_datacache(lisp_addr_t *eid_prefix,
+datacache_elt_t *find_eid_in_datacache(lisp_addr_t *eid_prefix,
                           uint8_t eid_prefix_length) // probably should include type here XXX
 {
     datacache_elt_t *elt;
@@ -158,9 +158,9 @@ int find_eid_in_datacache(lisp_addr_t *eid_prefix,
         continue;
     }
     if (elt) {
-        return(TRUE);
+        return(elt);
     } else {
-        return(FALSE);
+        return(NULL);
     }
 }
 
@@ -216,7 +216,7 @@ int build_datacache_entry(lisp_addr_t *eid_prefix,
                        uint64_t nonce,
                        request_type_e type)
 {
-
+    struct timeval   nowtime;
     datacache_elt_t *elt;
 
     if ((elt = malloc(sizeof(datacache_elt_t))) == NULL) {
@@ -236,9 +236,12 @@ int build_datacache_entry(lisp_addr_t *eid_prefix,
 
     memcpy(&elt->eid_prefix, eid_prefix, sizeof(lisp_addr_t));
     elt->prefix_length = eid_prefix_length;
-    elt->retries           = lispd_config.map_request_retries;
+    elt->retries           = lispd_config.map_request_retries + 1;
     elt->type              = type;
     elt->next              = NULL;
+
+    gettimeofday(&nowtime, NULL);
+    elt->scheduled_to_send.tv_sec = nowtime.tv_sec + 1; // Start initial retry at one second
 
     /* link up the entry */
     if (datacache->tail)

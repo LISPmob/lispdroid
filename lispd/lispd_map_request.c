@@ -461,7 +461,9 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
     uint8_t *packet;
     uint64_t nonce;
     int      len;				/* return the length here */
+    int      retry_time_in_sec;
     char     addr_buf[128];
+    datacache_elt_t *elt;
 
     log_msg(INFO, "In build_and_send_map_request()");
 
@@ -491,7 +493,8 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
     }
 
     // Keep track for retries
-    if (!find_eid_in_datacache(eid_prefix, eid_prefix_length)) {
+    elt = find_eid_in_datacache(eid_prefix, eid_prefix_length);
+    if (elt == NULL) {
         if (!build_datacache_entry(eid_prefix,
                                    eid_prefix_length,
                                    NULL,
@@ -503,7 +506,14 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
 
         log_msg(INFO, "Request entry not found in queue, added new entry.");
     } else {
-        log_msg(INFO, "Found entry already in queue.");
+        retry_time_in_sec = 2 << (lispd_config.map_request_retries - elt->retries);
+        if (retry_time_in_sec == 0) {
+            retry_time_in_sec = 1;
+        }
+        gettimeofday(&elt->scheduled_to_send, NULL);
+        elt->scheduled_to_send.tv_sec += retry_time_in_sec;
+        log_msg(INFO, "Found entry already in queue, setting retry timer to %d sec from now",
+                retry_time_in_sec);
     }
 
     // Start the timer if it's not already running
@@ -736,7 +746,14 @@ void retry_map_requests(void)
     elt = datacache->head;
 
     while (elt) {
-        elt->retries--;
+
+        // Check if it's time to send it.
+        gettimeofday(&nowtime, NULL);
+        if (elt->scheduled_to_send.tv_sec > nowtime.tv_sec) {
+            elt = elt->next;
+            continue;
+        }
+
         if (!elt->retries) { // It's done
 
             log_msg(INFO, "No response after %d retries, removing request from queue",
@@ -764,7 +781,7 @@ void retry_map_requests(void)
             elt->last_sent.tv_usec = 0;
             elt->nonce = nonce;
         }
-
+        elt->retries--;
         elt = elt->next;
     }
 
