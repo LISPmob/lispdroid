@@ -9,6 +9,8 @@
     <string name="NullString"> </string>
     <string name="lispdRunning">lispd is Running</string>
     <string name="showMapCacheString">Show Map Cache</string>
+    <string name="showDataCacheString">Show Data Cache</string>
+    <string name="showClearCacheString">Clear Map Cache</string>
     <string name="showLogString">Show lispd logfile</string>
     <string name="lispRunning">LISP is running</string>
     <string name="lispNotRunning">LISP is NOT running</string>

@@ -69,7 +69,7 @@ static int
 cmdline_parser_required2 (struct gengetopt_args_info *args_info, const char *prog_name, const char *additional_error);
 
 const char *cmdline_parser_add_entry_values[] = {"db", "cache", 0}; /*< Possible values for add-entry. */
-const char *cmdline_parser_print_values[] = {"db", "cache", 0}; /*< Possible values for print. */
+const char *cmdline_parser_print_values[] = {"db", "cache", "dcache", "ccache", 0}; /*< Possible values for print. */
 const char *cmdline_parser_list_values[] = {"eids", "rlocs", 0}; /*< Possible values for list. */
 
 static char *

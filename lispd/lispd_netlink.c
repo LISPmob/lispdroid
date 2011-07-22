@@ -261,6 +261,7 @@ void clear_map_cache(void)
     cmd.length = 0;
     cmd.type = LispMapCacheClear;
 
+    log_msg(INFO, "Calling send_command with map cache");
     send_command(&cmd, cmd_length);
 }
 

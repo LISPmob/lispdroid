@@ -410,7 +410,8 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
  */
 int send_map_request(uint8_t *packet,
                      int	packet_len,
-                     lisp_addr_t *resolver)
+                     lisp_addr_t *resolver,
+		     uint64_t nonce)
 {
     struct sockaddr_in   map_resolver;
     int			nbytes = 0;
@@ -444,6 +445,12 @@ int send_map_request(uint8_t *packet,
     }
     log_msg(INFO, "  Map request sent to %s",
            inet_ntop(AF_INET, &map_resolver.sin_addr, addr_buf, 128));
+
+    char *debug_str;
+    debug_str = lisp_print_nonce(nonce);
+    log_msg(INFO, "CSCO  Map request sent to %s and nonce is: %s",
+           inet_ntop(AF_INET, &map_resolver.sin_addr, addr_buf, 128), debug_str); 
+
     free(packet);
     return(1);
 }
@@ -483,7 +490,7 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
     }
 
     // Use first map-resolver for now. XXX
-    if (!send_map_request(packet, len, lispd_config.map_resolvers->address)) {
+    if (!send_map_request(packet, len, lispd_config.map_resolvers->address, nonce)) {
         inet_ntop(eid_prefix->afi, &eid_prefix->address, addr_buf, sizeof(addr_buf));
         log_msg(INFO,
 	       "Could not send map-request for %s/%d",

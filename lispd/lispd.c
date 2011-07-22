@@ -29,6 +29,15 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/types.h>
+#include <pthread.h>
+#include <sched.h>
+#include <sys/un.h>
+#include <errno.h>
+
 #include "lispd.h"
 #include "lispd_packets.h"
 #include "lispd_config.h"
@@ -161,6 +170,124 @@ int get_process_lock(int pid)
   return TRUE;
 }
 
+#define LISP_DCACHE_PATH_MAX 100
+#define LISP_DCACHE_FILE "/data/data/com.le.lispmon/lispd_dcache"
+
+int make_dsock_addr(const char *dsock_name, struct sockaddr_un *dsock_addr, socklen_t *dsock_len) 
+{
+	int namelen = strlen(dsock_name);
+
+	if ( namelen >= ( (int)sizeof(dsock_addr->sun_path) - 1 ) ) {
+		log_msg(ERROR, "namelen greater than allowed");
+		return -1;
+	}
+
+	strcpy(dsock_addr->sun_path, dsock_name);
+
+	dsock_addr->sun_family = AF_UNIX;
+	dsock_len = strlen(dsock_addr->sun_path) + sizeof(dsock_addr->sun_family);
+
+	return 0;
+}
+
+void * handle_dcache_requests(void *arg)
+{
+	struct sockaddr_un dsock_addr;
+	socklen_t dsock_len;
+	int dsock_fd, dclient_fd;
+	char *nonce, addr_buf[128], *msg, prefix_len[10], cmd[10];
+	int msize;
+
+	unlink(LISP_DCACHE_FILE);
+	
+	memset((char *)&dsock_addr, 0 ,sizeof(struct sockaddr_un));
+
+	if ( make_dsock_addr(LISP_DCACHE_FILE, &dsock_addr, &dsock_len) < 0 ) {
+		log_msg(ERROR, "make_dsock failed");
+		return NULL;
+	}
+
+	if ( (dsock_fd = socket(AF_UNIX, SOCK_STREAM, 0) ) < 0) {
+		log_msg(ERROR, "socket creation failed %s", strerror(errno));
+		return NULL;
+	}
+
+	if ( ( bind(dsock_fd, (struct sockaddr *)&dsock_addr, sizeof(struct sockaddr_un)) ) != 0 ) {
+		log_msg(ERROR, "bind call failed %s", strerror(errno));
+		return NULL;
+	}
+
+	if ( listen(dsock_fd, 1) != 0 ) {
+		log_msg(ERROR, "listen failed %s", strerror(errno));
+		return NULL;
+	}
+
+	log_msg(INFO, "Listening on domain socket");
+
+	while (1) {
+		
+		if ( ( dclient_fd = accept(dsock_fd, (struct sockaddr *)&dsock_addr, &dsock_len) ) == -1 ) {
+			log_msg(ERROR, "accept call failed %s", strerror(errno));
+			return NULL;
+		}
+
+	        if ( recv(dclient_fd, cmd, 10, 0) < 0 ) {
+        	        log_msg("recv call failed, %s", strerror(errno));
+                	return NULL;
+	        }
+
+		log_msg(INFO, "Received command %s", cmd);
+
+		if ( strcmp(cmd, "DCACHE") == 0 ) {
+
+			log_msg(INFO, "Got connection request for dcache.");
+
+			datacache_elt_t *elt, *prev;
+
+			elt = datacache->head;
+			while (elt) {
+				nonce = lisp_print_nonce(elt->nonce);
+				inet_ntop(elt->eid_prefix.afi, &(elt->eid_prefix.address), addr_buf, sizeof(addr_buf));
+				sprintf(prefix_len, "%d", elt->prefix_length);
+				if (msg) 
+					free(msg);
+				msize = sizeof(addr_buf) + strlen(nonce) + strlen(prefix_len) + 1;
+				msg = (char *)malloc(sizeof(char)*msize);
+				sprintf(msg, "%s#%s#%s", addr_buf, prefix_len, nonce);
+				log_msg(INFO, "dcache entry: %s", msg);
+				if ( ( send(dclient_fd, msg, 200, 0) ) < 0 ) {
+					log_msg(ERROR, "send error %s", strerror(errno));
+					return NULL;
+				}
+		        	elt = elt->next;
+			}
+
+			close(dclient_fd);
+		}
+		else if ( strcmp(cmd, "CCACHE") == 0 ) {
+	
+			log_msg(INFO, "Got connection request for clear_cache");
+			log_msg(INFO, "Clearing the Map Cache");
+			clear_map_cache();
+
+			close(dclient_fd);
+		}
+	}
+
+	return 0;
+}
+
+void listen_on_well_known_port()
+{
+	pthread_t dcache_t;
+
+	if ( pthread_create(&dcache_t, NULL, handle_dcache_requests, NULL) != 0 ) {
+		log_msg(ERROR, "thread creation failed %s", strerror(errno));
+		return;
+	}
+}
+
+
 int main(int argc, char **argv)
 {
     int    fd                           = 0;
@@ -292,6 +419,8 @@ int main(int argc, char **argv)
     set_timer(RLOCProbeScan, RLOC_PROBE_CHECK_INTERVAL);
 
     clear_map_cache();
+
+    listen_on_well_known_port();
 
     dump_info_file();
     event_loop();

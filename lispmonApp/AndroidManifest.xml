@@ -17,6 +17,9 @@
         <activity android:name="mapCacheActivity"></activity>
         <activity android:name="confActivity"></activity>
         <activity android:name="pingActivity"></activity>
+                
+        <activity android:name="dataCacheActivity"></activity>
+        <activity android:name="clearCacheActivity"></activity>
 
     </application>
     <uses-permission android:name="android.permission.INTERNET" />

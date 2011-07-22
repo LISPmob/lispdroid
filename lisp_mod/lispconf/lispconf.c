@@ -23,6 +23,8 @@
 #include <linux/netlink.h>
 #include "cmdline.h"
 
+#include <sys/un.h>
+
 const int true = 1;
 const int false = 0;
 
@@ -609,6 +611,26 @@ int process_print_db_responses(void)
     return 0;
 }
 
+#define LISP_DCACHE_PATH_MAX 100
+#define LISP_DCACHE_FILE "/data/data/com.le.lispmon/lispd_dcache"
+
+int make_dsock_addr(const char *dsock_name, struct sockaddr_un *dsock_addr, socklen_t *dsock_len)
+{
+        int namelen = strlen(dsock_name);
+
+        if ( namelen >= ( (int)sizeof(dsock_addr->sun_path) - 1 ) ) {
+               printf("namelen greater than allowed");
+                return -1;
+        }
+
+        strcpy(dsock_addr->sun_path, dsock_name);
+
+        dsock_addr->sun_family = AF_UNIX;
+	*dsock_len = strlen(dsock_addr->sun_path) + sizeof(dsock_addr->sun_family);
+
+        return 0;
+}
+
 /*
  * send_print_command
  *
@@ -628,6 +650,12 @@ int send_print_command(struct gengetopt_args_info *args_info)
     char *token;
     int cache = true;
 
+    struct sockaddr_un dsock_addr;
+    socklen_t dsock_len;
+    int dsock_fd, dclient_fd;
+    int ret, msize=200;
+    char msg[200], *tok;
+ 
     cmd = (lisp_cmd_t *)malloc(cmd_length);
     if (!cmd) {
         return -1;
@@ -662,7 +690,7 @@ int send_print_command(struct gengetopt_args_info *args_info)
                     exit(1);
                 }
             }
-        } else {
+    	} else { 
             inet_pton(eid_af, token, eid_prefix.address.ipv6.s6_addr);
             token = strtok(NULL, "/");
             if (!token) {
@@ -681,7 +709,92 @@ int send_print_command(struct gengetopt_args_info *args_info)
     if (!strncmp(args_info->print_arg, "cache", strlen("cache"))) {
         cmd->type = LispMapCacheLookup;
         cache = true;
-    } else {
+    }
+    else if (!strncmp(args_info->print_arg, "dcache", strlen("dcache"))) {
+
+        memset((char *)&dsock_addr, 0 ,sizeof(struct sockaddr_un));
+
+        if ( make_dsock_addr(LISP_DCACHE_FILE, &dsock_addr, &dsock_len) < 0 ) {
+                printf("make_dsock failed");
+                return 0;
+        }
+
+        if ( (dsock_fd = socket(AF_UNIX, SOCK_STREAM, 0) ) < 0) {
+                printf("socket creation failed %s", strerror(errno));
+                return 0;
+        }
+
+	if ( connect(dsock_fd, (struct sockaddr *)&dsock_addr, dsock_len) < 0 ) {
+		printf("connect call failed, %s", strerror(errno));
+		return 0;	
+	}
+
+	if ( send(dsock_fd, "DCACHE", 10, 0) < 0 ) {
+		printf("send call failed, %s", strerror(errno));
+		return 0;
+	}
+
+	printf("LISP Data Cache \n\n");
+	printf("Destination EID Prefix                      Nonce\n\n");
+	do {
+		if ( ret = recv(dsock_fd, msg, msize, 0) > 0 ) {
+			tok = strtok(msg, "#");
+			if ( tok ) printf("%s\/", tok);
+			tok = strtok(NULL, "#");
+			if ( tok ) printf("%s            ", tok);
+			tok = strtok(NULL, "#");
+			while( tok != NULL ) {
+				printf("%s          ", tok);
+				tok = strtok(NULL, "#");
+			}
+			printf("\n");
+		}
+		else if ( ret < 0) {
+			printf("recv error!");
+		}
+		else {
+			//printf("Data receiving done!");
+			;
+		}
+		
+	}while (ret > 0);
+
+	close(dsock_fd);
+ 
+	return 0;
+    }
+    else if (!strncmp(args_info->print_arg, "ccache", strlen("ccache"))) {
+
+        memset((char *)&dsock_addr, 0 ,sizeof(struct sockaddr_un));
+
+        if ( make_dsock_addr(LISP_DCACHE_FILE, &dsock_addr, &dsock_len) < 0 ) {
+                printf("make_dsock failed");
+                return 0;
+        }
+
+        if ( (dsock_fd = socket(AF_UNIX, SOCK_STREAM, 0) ) < 0) {
+                printf("socket creation failed %s", strerror(errno));
+                return 0;
+        }
+
+	if ( connect(dsock_fd, (struct sockaddr *)&dsock_addr, dsock_len) < 0 ) {
+		printf("connect call failed, %s", strerror(errno));
+		return 0;	
+	}
+
+	if ( send(dsock_fd, "CCACHE", 10, 0) < 0 ) {
+		printf("send call failed, %s", strerror(errno));
+		return 0;
+	}
+	
+	printf("LISP IP Map Cache cleared!");
+
+	close(dsock_fd);
+		
+	return 0;
+    }
+    else {
+
         cmd->type = LispDatabaseLookup;
         cache = false;
     }

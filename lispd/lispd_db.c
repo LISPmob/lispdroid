@@ -165,6 +165,32 @@ datacache_elt_t *find_eid_in_datacache(lisp_addr_t *eid_prefix,
 }
 
 /*
+ * Used by lisp_print_nonce() only.
+ */
+static char lisp_nonce_str[2][30];
+static char lisp_nonce_str_count = 0;
+
+/*
+ * lisp_print_nonce
+ *
+ * Print 64-bit nonce in 0x%08x-0x%08x format.
+ */
+char * lisp_print_nonce (uint64_t nonce)
+{
+  char  *str;
+  unsigned long lower;
+  unsigned long upper;
+
+  str = lisp_nonce_str[(lisp_nonce_str_count & 1)];
+  lisp_nonce_str_count++;
+
+  lower = nonce & 0xffffffff;
+  upper = (nonce >> 32) & 0xffffffff;
+  snprintf(str, 25, "0x%08x-0x%08x", (uint) upper, (uint) lower);
+  return(str);
+}
+
+/*
  * remove_eid_from_datacache()
  *
  * Checks for a matching nonce in the data cache. If an
@@ -173,6 +199,10 @@ datacache_elt_t *find_eid_in_datacache(lisp_addr_t *eid_prefix,
 int remove_eid_from_datacache(uint64_t nonce)
 {
     datacache_elt_t *elt, *prev;
+
+    char *debug_nonce;
+    debug_nonce = lisp_print_nonce(nonce);
+    log_msg(INFO, "CSCO The nonce received is : %s", debug_nonce);
 
     elt = datacache->head;
     prev = elt;
