@@ -95,6 +95,15 @@ public class lispMonitor extends Activity implements OnClickListener {
         }
         );
         
+        Button updateconf = (Button) findViewById(R.id.updateConfButton);
+        updateconf.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+                Intent myIntent = new Intent(view.getContext(), updateConfActivity.class);
+                startActivityForResult(myIntent, 0);
+            }
+        }
+        );
+
         Log.v("lispMonitor", "Creating...");
     }
     

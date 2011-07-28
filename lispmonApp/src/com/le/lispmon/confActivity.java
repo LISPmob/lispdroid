@@ -28,7 +28,7 @@ public class confActivity extends Activity {
 		try {
 			reader = new BufferedReader(new FileReader(infoFile));
 		} catch (FileNotFoundException e) {
-			statusView.setText("Configuration file missing.");
+			statusView.setText("Configuration file missing.\nPlease Go To \"Update LISP Configuration\" screen to input configuration.\n");
 			return;
 		}
     	String line;
