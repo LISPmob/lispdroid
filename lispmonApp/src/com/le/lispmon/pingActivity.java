@@ -84,7 +84,8 @@ public class pingActivity extends Activity implements OnItemSelectedListener {
 		if (address.contains(":")) {
 			extraArg = "ping6";
 		} else {
-			extraArg = "ping";
+			command = "/system/bin/ping";
+			extraArg = "-i1";
 		}
 		String sizeArg = "-s";
 		sizeArg = sizeArg.concat(Integer.toString(mPingSize));
@@ -465,7 +466,7 @@ public class pingActivity extends Activity implements OnItemSelectedListener {
 	    }
 		return super.onOptionsItemSelected(item);
 	}
-	int mPingSize = 100;
+	int mPingSize = 56;
 	
 	protected Dialog onCreateDialog(int id) {
 		Dialog dialog = new Dialog(this);
