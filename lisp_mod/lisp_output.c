@@ -129,7 +129,6 @@ void lisp_encap4(struct sk_buff *skb, int locator_addr,
   /* 
    * Construct and add the LISP header
    */
-  skb->transport_header = skb->network_header;
   lisph = (struct lisphdr *)(skb_push(skb, sizeof(struct lisphdr)));
   skb_reset_transport_header(skb);
 
@@ -151,8 +150,7 @@ void lisp_encap4(struct sk_buff *skb, int locator_addr,
 
   /* 
    * Construct and add the udp header
-   */ 
-  skb->transport_header = skb->network_header;
+   */
   udh = (struct udphdr *)(skb_push(skb, sizeof(struct udphdr)));
   skb_reset_transport_header(skb);
 
@@ -168,9 +166,13 @@ void lisp_encap4(struct sk_buff *skb, int locator_addr,
   /*
    * Construct and add the outer ip header
    */
+  skb->transport_header = skb->network_header;
   iph = (struct iphdr *)skb_push(skb, sizeof(struct iphdr));
   skb_reset_network_header(skb);
   memset(&(IPCB(skb)->opt), 0, sizeof(IPCB(skb)->opt));
+  IPCB(skb)->flags &= ~(IPSKB_XFRM_TUNNEL_SIZE | IPSKB_XFRM_TRANSFORMED |
+                                IPSKB_REROUTED);
+
 #ifdef NEW_KERNEL
   skb_dst_drop(skb);
   skb_dst_set(skb, &rt->u.dst);
@@ -202,8 +204,7 @@ void lisp_encap4(struct sk_buff *skb, int locator_addr,
    * This is the same work that the tunnel code does
    */
   pkt_len = skb->len - skb_transport_offset(skb);
-  
-  skb->ip_summed = CHECKSUM_NONE;
+
   ip_select_ident(iph, &rt->u.dst, NULL);
 
   /*
@@ -617,7 +618,7 @@ unsigned int lisp_output4(unsigned int hooknum,
     printk(KERN_INFO "        No EID mapping found, notifying lispd...\n");
     miss_addr.address.ip.s_addr = iph->daddr;
     send_cache_miss_notification(miss_addr, AF_INET);
-    return NF_ACCEPT;  // What's the right thing to do here? XXX
+    return NF_DROP;  // Don't try to natively transmit without a cache entry
   }
 
   /*
