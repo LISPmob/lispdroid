@@ -18,9 +18,9 @@ LOCAL_SRC_FILES = cmdline.c lispd.c lispd_config.c lispd_syslog.c \
 LOCAL_C_FLAGS += -g
 LOCAL_C_INCLUDES := external/openssl/include/
 LOCAL_STATIC_LIBRARIES := libconfuse
-LOCAL_SHARED_LIBRARIES := libcutils libssl 
+LOCAL_SHARED_LIBRARIES := libcutils libssl libcrypto
 LOCAL_MODULE = lispd
-LOCAL_MODULE_TAGS := user
+LOCAL_MODULE_TAGS := optional
 include $(BUILD_EXECUTABLE)
 
 include $(subdirs) 
