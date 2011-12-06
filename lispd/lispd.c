@@ -145,6 +145,11 @@ void dump_info_file(void) {
     fprintf(fp, "Locator(s):\n");
     dump_database(AF4_database, AF_INET, fp);
     dump_database(AF6_database, AF_INET6, fp);
+
+    if (lispd_config.use_dns_override) {
+        fprintf(fp, "LISP DNS Resolver: %s", inet_ntop(AF_INET, &lispd_config.dns_override_address.address,
+                                                       addr_buf, 128));
+    }
     fclose(fp);
 }
 

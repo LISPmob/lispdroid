@@ -110,6 +110,7 @@ int handle_lispd_config_file(void)
         CFG_STR("eid-address-ipv4",          0, CFGF_NONE),
         CFG_STR("eid-address-ipv6",          0, CFGF_NONE),
         CFG_SEC("interface", if_opts, CFGF_MULTI),
+        CFG_STR("override-dns",         0, CFGF_NONE),
 	CFG_END()
     };
 
@@ -197,6 +198,13 @@ int handle_lispd_config_file(void)
     }
 
     /*
+     * Override the system DNS? This can be useful in cases where
+     * the DNS server provided by DHCP filters based on source address,
+     * or fails uRPF.
+     */
+    lispd_config.use_dns_override = set_dns_override(cfg_getstr(cfg, "override-dns"));
+
+    /*
      *	handle map-resolver config XXX should check for multiples, none
      */
     lispd_config.map_resolver_name = cfg_getstr(cfg, "map-resolver");
@@ -279,6 +287,74 @@ int set_petr_addr(char *petr_addr_str)
 }
 
 /*
+ * set_dns_override
+ *
+ * Change the default DNS resolver address to something specified in the configuration
+ * file. This uses the Android system properties, so may need to change based on version.
+ */
+int set_dns_override(char *dns_server)
+{
+
+    char value[128];
+    char def_value[128];
+
+#ifndef ANDROID
+    log_msg(ERROR, "DNS override is only supported on Android, option ignored.");
+    return(FALSE);
+#endif
+
+    if (!dns_server) {
+        return(FALSE);
+    }
+    property_get("net.dns1", value, def_value);
+
+    log_msg(INFO, "Current DNS Address is %s", value);
+
+    lispd_config.original_dns_address.afi = AF_INET;
+    if (!inet_pton(AF_INET, value, (void *)&lispd_config.original_dns_address.address.ip)) {
+        log_msg(ERROR, "Unable to cache original DNS resolver address");
+        return(FALSE);
+    }
+
+    if (!inet_pton(AF_INET, dns_server, (void *)&lispd_config.dns_override_address.address.ip)) {
+        log_msg(ERROR, "Unable to parse override DNS resolver address, check config");
+        return(FALSE);
+    }
+
+    property_set("net.dns1", dns_server);
+    return(TRUE);
+}
+
+/*
+ * restore_dns_server
+ *
+ * Restore the original DNS resolver on exit, if we can.
+ */
+int restore_dns_server(void)
+{
+    char server_str[128];
+#ifndef ANDROID
+    log_msg(ERROR, "DNS override is only supported on Android");
+    return(FALSE);
+#endif
+
+    if (!lispd_config.use_dns_override) {
+        log_msg(INFO, "No DNS override set.");
+        return(FALSE);
+    }
+
+
+    if (!inet_ntop(AF_INET, &lispd_config.dns_override_address.address.ip,
+                   server_str, 128)) {
+        log_msg(ERROR, "Unable to parse original DNS server string.");
+        return(FALSE);
+    }
+
+    property_set("net.dns1", server_str);
+    return(TRUE);
+}
+
+/*
  * set_kernel_rloc()
  *
  * Set the address the kernel uses for sourcing encapsulated packets.
@@ -287,7 +363,9 @@ int set_kernel_rloc(lisp_addr_t *addr)
 {
     lisp_set_rloc_msg_t  *rloc_msg;
     lisp_cmd_t           *cmd;
-    int                   cmd_length = sizeof(lisp_cmd_t) + sizeof(lisp_set_rloc_msg_t);
+    int                   cmd_length = sizeof(lisp_cmd_t) + sizeof(lisp_set_rloc_msg_t) +
+            sizeof(rloc_t);
+    rloc_t               *rloc;
 
     if (!addr) {
         return FALSE;
@@ -297,11 +375,12 @@ int set_kernel_rloc(lisp_addr_t *addr)
        return FALSE;
     }
 
-    memset(cmd, 0, sizeof(lisp_cmd_t));
+    memset(cmd, 0, cmd_length);
     rloc_msg = (lisp_set_rloc_msg_t *)cmd->val;
-
-    memcpy(&rloc_msg->addr, &addr->address, sizeof(lisp_addr_t));
-
+    rloc = (rloc_t *)&rloc_msg->rlocs;
+    memcpy(&rloc->addr, &addr->address, sizeof(lisp_addr_t));
+    rloc->if_index = 0;
+    rloc_msg->count = 1;
     cmd->type = LispSetRLOC;
     cmd->length = sizeof(lisp_set_rloc_msg_t);
     if (send_command(cmd, cmd_length)) {

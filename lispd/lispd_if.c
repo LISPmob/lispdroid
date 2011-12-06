@@ -394,6 +394,10 @@ unsigned int get_current_default_gw(lispd_if_t *intf)
     char def_value[128];
     lisp_addr_t old_gateway = intf->default_gw;
 
+#ifndef ANDROID
+    log_msg(ERR, "Cannot get default gateway on non-Android systems at this time");
+    return(FALSE);
+#endif
     sprintf(prop_name, "net.%s.gw", intf->name);
     property_get(prop_name, value, def_value);
 

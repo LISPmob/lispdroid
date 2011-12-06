@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-const char *moduleFilename = "/system/lib/modules/lisp.ko";
+const char *moduleFilename = "/system/modules/lisp.ko";
 const char *moduleName = "lisp";
 const char *daemonCommand = "/system/bin/lispd -f /sdcard/lispd.conf";
 const char *moduleInstallCommand = "/system/bin/insmod";

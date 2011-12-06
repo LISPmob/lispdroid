@@ -42,9 +42,12 @@ typedef struct {
     char                     petr_addr_is_set;
     int                      rloc_probe_interval; /* 0 means do not RLOC-probe */
     char                     rloc_probe_retries;
+    char                     use_dns_override;
     lisp_addr_t              petr_addr;
     lisp_addr_t              eid_address_v4;  /* AF of 0 means unset */
     lisp_addr_t              eid_address_v6;  /* ""                  */
+    lisp_addr_t              dns_override_address;
+    lisp_addr_t              original_dns_address; /* For restoration */
 } lispd_config_t;
 
 extern lispd_config_t lispd_config;
@@ -56,5 +59,6 @@ int handle_lispd_config_file(void);
 int add_map_resolver(char *map_resolver);
 int add_map_server(char *map_server, int key_type, char *key, uint8_t proxy_reply, uint8_t verify);
 int set_kernel_rloc(lisp_addr_t *addr);
-
+int set_dns_override(char *dns_server);
+int restore_dns_server(void);
 
