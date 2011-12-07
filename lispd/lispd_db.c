@@ -128,7 +128,7 @@ int lookup_eid_in_db(uint16_t eid_afi, uint32_t eid, lispd_locator_chain_t **loc
  * find_eid_in_datacache
  *
  */
-int find_eid_in_datacache(lisp_addr_t *eid_prefix,
+datacache_elt_t *find_eid_in_datacache(lisp_addr_t *eid_prefix,
                           uint8_t eid_prefix_length) // probably should include type here XXX
 {
     datacache_elt_t *elt;
@@ -158,10 +158,36 @@ int find_eid_in_datacache(lisp_addr_t *eid_prefix,
         continue;
     }
     if (elt) {
-        return(TRUE);
+        return(elt);
     } else {
-        return(FALSE);
+        return(NULL);
     }
+}
+
+/*
+ * Used by lisp_print_nonce() only.
+ */
+static char lisp_nonce_str[2][30];
+static char lisp_nonce_str_count = 0;
+
+/*
+ * lisp_print_nonce
+ *
+ * Print 64-bit nonce in 0x%08x-0x%08x format.
+ */
+char * lisp_print_nonce (uint64_t nonce)
+{
+  char  *str;
+  unsigned long lower;
+  unsigned long upper;
+
+  str = lisp_nonce_str[(lisp_nonce_str_count & 1)];
+  lisp_nonce_str_count++;
+
+  lower = nonce & 0xffffffff;
+  upper = (nonce >> 32) & 0xffffffff;
+  snprintf(str, 25, "0x%08x-0x%08x", (uint) upper, (uint) lower);
+  return(str);
 }
 
 /*
@@ -173,6 +199,10 @@ int find_eid_in_datacache(lisp_addr_t *eid_prefix,
 int remove_eid_from_datacache(uint64_t nonce)
 {
     datacache_elt_t *elt, *prev;
+
+    char *debug_nonce;
+    debug_nonce = lisp_print_nonce(nonce);
+    log_msg(INFO, "CSCO The nonce received is : %s", debug_nonce);
 
     elt = datacache->head;
     prev = elt;
@@ -216,7 +246,7 @@ int build_datacache_entry(lisp_addr_t *eid_prefix,
                        uint64_t nonce,
                        request_type_e type)
 {
-
+    struct timeval   nowtime;
     datacache_elt_t *elt;
 
     if ((elt = malloc(sizeof(datacache_elt_t))) == NULL) {
@@ -236,9 +266,12 @@ int build_datacache_entry(lisp_addr_t *eid_prefix,
 
     memcpy(&elt->eid_prefix, eid_prefix, sizeof(lisp_addr_t));
     elt->prefix_length = eid_prefix_length;
-    elt->retries           = lispd_config.map_request_retries;
+    elt->retries           = lispd_config.map_request_retries + 1;
     elt->type              = type;
     elt->next              = NULL;
+
+    gettimeofday(&nowtime, NULL);
+    elt->scheduled_to_send.tv_sec = nowtime.tv_sec + 1; // Start initial retry at one second
 
     /* link up the entry */
     if (datacache->tail)

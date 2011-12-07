@@ -10,4 +10,4 @@
 
 #define REGISTER_INTERVAL 60  // Seconds
 
-int map_register(patricia_tree_t *tree);
+int map_register(void);

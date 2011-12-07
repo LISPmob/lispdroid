@@ -39,7 +39,7 @@ typedef struct ifaddrs {
 
 typedef struct {
     struct nlmsghdr nlh;
-    struct rtgenmsg rtmsg;
+    struct rtgenmsg  rtmsg;
 } request_struct;
 
 typedef enum {

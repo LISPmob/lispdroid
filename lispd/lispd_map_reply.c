@@ -168,15 +168,13 @@ lisp_eid_map_msg_t *add_petr_to_cache_msg(lisp_eid_map_msg_t *old_msg)
  */
 int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *records, int count)
 {
-    int locator_count = 0;
     int eid_counter = 0;
     int eid_addr_offset = 0;
+    int eid_afi = 0;
     int total_addr_offset = 0;
-    lispd_pkt_map_reply_locator_record_t *loc_rec;
     lispd_pkt_map_reply_eid_prefix_record_t *curr_eid = records;
     lisp_eid_map_msg_t *cache_msg;
     char addr_buf[128];
-    lisp_eid_map_msg_loc_t *loc;
     int i;
 
     for (eid_counter = 0; eid_counter < count; eid_counter++) {
@@ -185,9 +183,9 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
                   (eid_counter * sizeof(lispd_pkt_map_reply_eid_prefix_record_t)) +
                    total_addr_offset); // XXX what about locator sizes? Not sure this works with > 1 eid XXX
 
-        // Assumes v4 for now
+        eid_afi = ntohs(curr_eid->eid_afi);
         log_msg(INFO, "  EID: %s/%d, ttl %u, act: %d auth: %d, locators: %d",
-               inet_ntop(AF_INET, curr_eid->eid_prefix, addr_buf, 128), curr_eid->eid_masklen,
+               inet_ntop(lisp2inetafi(eid_afi), curr_eid->eid_prefix, addr_buf, 128), curr_eid->eid_masklen,
                ntohl(curr_eid->ttl), curr_eid->act, curr_eid->authoritative, curr_eid->loc_count);
 
         // Grab a message buffer of appropriate size
@@ -202,12 +200,12 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
         memset(cache_msg, 0, sizeof(lisp_eid_map_msg_t) +
                curr_eid->loc_count * sizeof(lisp_eid_map_msg_loc_t));
 
-        if (ntohs(curr_eid->eid_afi) == LISP_AFI_IP) {
+        if (eid_afi == LISP_AFI_IP) {
             eid_addr_offset = sizeof(struct in_addr);
-        } else if (htons(curr_eid->eid_afi) == LISP_AFI_IPV6) {
+        } else if (eid_afi == LISP_AFI_IPV6) {
             eid_addr_offset = sizeof(struct in6_addr);
         } else {
-            log_msg(INFO, "    Unknown AFI in EID entry %d", curr_eid->eid_afi);
+            log_msg(INFO, "    Unknown LISP AFI in EID entry %d", eid_afi);
         }
 
         if (!build_cache_msg_eid_portion(cache_msg, curr_eid)) {

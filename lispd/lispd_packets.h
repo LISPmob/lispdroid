@@ -124,16 +124,24 @@ typedef struct {
  *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *  |           Reserved            |       UDP/TCP Port Number     |
  *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *  |              AFI = x          |         Address  ...          |
+ *  |              AFI = x          |       Global RLOC Address ... |
+ *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  |              AFI = x          |     Private RLOC Address  ... |
+ *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *  |              AFI = x          |       NTR RLOC Address    ... |
  *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *
  */
 typedef struct {
     uint16_t rsvd;
     uint16_t port;
-    uint16_t afi;
-    uint8_t  address[0];
+    uint8_t  addresses[0];
 } PACKED lispd_pkt_nat_lcaf_t;
+
+typedef struct {
+    uint16_t afi;
+    uint8_t address[0];
+} PACKED lispd_pkt_lcaf_addr_t;
 
 /*
  * Mapping record used in all LISP control messages.

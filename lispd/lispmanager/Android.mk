@@ -15,7 +15,7 @@ LOCAL_SRC_FILES = lispmanager.c
 LOCAL_C_FLAGS += -g
 LOCAL_SHARED_LIBRARIES := libcutils
 LOCAL_MODULE = lispmanager
-LOCAL_MODULE_TAGS := user
+LOCAL_MODULE_TAGS := optional
 include $(BUILD_EXECUTABLE)
 
 include $(subdirs) 

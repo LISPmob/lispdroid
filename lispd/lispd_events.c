@@ -396,6 +396,9 @@ void signal_handler(int sig) {
         log_msg(WARNING, "Received SIGTERM signal.");
         log_msg(WARNING, "Cleaning up routes...");
         cleanup_routes();
+
+        log_msg(WARNING, "Restoring original DNS resolver...");
+        restore_dns_server();
         log_msg(WARNING, "Exiting.");
         exit(0);
         break;

@@ -19,6 +19,7 @@
 #include "lispd_packets.h"
 #include "lispd_timers.h"
 #include "lispd_netlink.h"
+#include "lispd_util.h"
 
 extern int v4_receive_fd;
 extern int rtnetlink_fd;
@@ -393,6 +394,10 @@ unsigned int get_current_default_gw(lispd_if_t *intf)
     char def_value[128];
     lisp_addr_t old_gateway = intf->default_gw;
 
+#ifndef ANDROID
+    log_msg(ERR, "Cannot get default gateway on non-Android systems at this time");
+    return(FALSE);
+#endif
     sprintf(prop_name, "net.%s.gw", intf->name);
     property_get(prop_name, value, def_value);
 
@@ -458,7 +463,7 @@ void reconfigure_lisp_interfaces(void)
 void check_default_gateway(void)
 {
     if (primary_interface && get_current_default_gw(primary_interface)) {
-        install_default_route(primary_interface, FALSE);
+        install_default_routes(primary_interface, FALSE);
         update_map_server_routes();
     }
     stop_timer(DefaultGWDetect);
@@ -579,7 +584,7 @@ void handle_if_status_change(struct ifinfomsg *ifi)
      * Update our mappings
      */
     install_database_mappings();
-    map_register(AF4_database);
+    map_register();
 }
 
 /*
@@ -628,7 +633,7 @@ void handle_ip_address_change(struct ifaddrmsg *ifa, uint32_t addr)
      * Update our mappings
      */
     install_database_mappings();
-    map_register(AF4_database);
+    map_register();
 
     /*
      * Clear the map cache XXX Not final in draft yet
@@ -658,7 +663,7 @@ void handle_route_change(struct rtmsg *rtm)
     dst = (struct in_addr *)((char *)rta +sizeof(struct rtattr));
     if ((rta->rta_type == RTA_DST) && (dst->s_addr == 0)) {
         log_msg(INFO, "  Change is to default route, updating our routes");
-        install_default_route(primary_interface, FALSE);
+        install_default_routes(primary_interface, FALSE);
         update_map_server_routes();
     } else {
         log_msg(INFO, "  RTA Type: %d, dst is 0x%x",
@@ -829,52 +834,60 @@ int create_loopback(lisp_addr_t *addr, char *name)
     struct sockaddr_in *sp;
     int    netsock;
 
-    netsock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (netsock < 0) {
-        log_msg(INFO, "create_loopback: socket() %s", strerror(errno));
-        return(FALSE);
+    if (addr->afi == AF_INET) {
+        netsock = socket(addr->afi, SOCK_DGRAM, 0);
+        if (netsock < 0) {
+            log_msg(INFO, "create_loopback: socket() %s", strerror(errno));
+            return(FALSE);
+        }
+
+        /*
+         * Fill in the request
+         */
+        strcpy(ifr.ifr_name, name);
+
+        sp = (struct sockaddr_in *)&ifr.ifr_addr;
+        sp->sin_family = addr->afi;
+        sp->sin_addr = addr->address.ip;
+
+
+        // Set the address
+        ioctl(netsock, SIOCSIFADDR, &ifr);
+        sp->sin_addr.s_addr = 0xFFFFFFFF;
+
+        ioctl(netsock, SIOCSIFNETMASK, &ifr);
+
+        close(netsock);
+        return(TRUE);
+    } else if (addr->afi == AF_INET6) {
+
+        /*
+         * In this case, we just add the address
+         * to the default loopback interface, no
+         * neeed to create a new one.
+         */
+        return(add_loopback_address_v6(addr));
     }
-
-   /*
-    * Fill in the request
-    */
-    strcpy(ifr.ifr_name, name);
-    sp = (struct sockaddr_in *)&ifr.ifr_addr;
-    sp->sin_family = AF_INET;     // V4 only XXX
-    sp->sin_addr = addr->address.ip;
-
-    // Set the address
-    ioctl(netsock, SIOCSIFADDR, &ifr);
-
-    // The mask occupies the same place in the union.
-    sp->sin_addr.s_addr = 0xFFFFFFFF;
-
-    ioctl(netsock, SIOCSIFNETMASK, &ifr);
-
-    close(netsock);
-    return(TRUE);
+    log_msg(ERROR, "Unknown address family %d for EID in create_loopback()", addr->afi);
+    return(FALSE);
 }
 
 /*
- * install_default_route()
+ * install_default_route_v4()
  *
  * Installs a default route through the specified interface,
  * using the configured EID loopback as the source address.
  */
-int install_default_route(lispd_if_t *intf, int cleanup)
+static int install_default_route_v4(lispd_if_t *intf, int cleanup)
 {
-    struct sockaddr_nl nladdr;
     struct nlmsghdr *nlh;
     struct rtmsg    *rtm;
     struct rtattr  *rta;
     int             rta_len = 0;
     char   sndbuf[4096];
-    char   rcvbuf[4096];
     char   addr_buf[128];
     char   addr_buf2[128];
-    int    readlen;
     int    retval;
-    struct nlmsghdr *rcvhdr;
     int    sockfd;
 
     sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
@@ -900,6 +913,7 @@ int install_default_route(lispd_if_t *intf, int cleanup)
     rta = (struct rtattr *)((char *)rtm + sizeof(struct rtmsg));
     rta->rta_type = RTA_DST;
     rta->rta_len = sizeof(struct rtattr) + sizeof(struct in_addr);
+
     // Address is already zeroed
     rta_len += rta->rta_len;
 
@@ -912,6 +926,12 @@ int install_default_route(lispd_if_t *intf, int cleanup)
     memcpy(((char *)rta) + sizeof(struct rtattr), &intf->if_index,
            sizeof(intf->if_index));
     rta_len += rta->rta_len;
+
+    /*
+     * For IPv4, add the default gateway as well as the
+     * source preference. For IPv6 in IPv4 these items are not
+     * necessary. TBD: What happens with IPv6 in IPv6 or IPv4 in IPv6?
+     */
 
     /*
      * Add the gateway
@@ -929,21 +949,22 @@ int install_default_route(lispd_if_t *intf, int cleanup)
     if (!cleanup) {
         rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
         rta->rta_type = RTA_PREFSRC;
-        rta->rta_len = sizeof(struct rtattr) + sizeof(lispd_config.eid_address.address.ip); // if_index
-        memcpy(((char *)rta) + sizeof(struct rtattr), &lispd_config.eid_address.address.ip,
-               sizeof(lispd_config.eid_address.address.ip));
+        rta->rta_len = sizeof(struct rtattr) + sizeof(lispd_config.eid_address_v4.address.ip); // if_index
+        memcpy(((char *)rta) + sizeof(struct rtattr), &lispd_config.eid_address_v4.address.ip,
+               sizeof(lispd_config.eid_address_v4.address.ip));
         rta_len += rta->rta_len;
     }
+
     nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
     nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_REPLACE;
     nlh->nlmsg_type =  RTM_NEWROUTE;
 
-    rtm->rtm_family = AF_INET;
-    rtm->rtm_table = RT_TABLE_MAIN;
-    rtm->rtm_protocol = RTPROT_STATIC;
-    rtm->rtm_scope = RT_SCOPE_UNIVERSE;
-    rtm->rtm_type = RTN_UNICAST;
-    rtm->rtm_dst_len = 0;
+    rtm->rtm_family    = AF_INET;
+    rtm->rtm_table     = RT_TABLE_MAIN;
+    rtm->rtm_protocol  = RTPROT_STATIC;
+    rtm->rtm_scope     = RT_SCOPE_UNIVERSE;
+    rtm->rtm_type      = RTN_UNICAST;
+    rtm->rtm_dst_len   = 0;
 
     retval = send(sockfd, sndbuf, NLMSG_LENGTH(rta_len), 0);
 
@@ -955,14 +976,112 @@ int install_default_route(lispd_if_t *intf, int cleanup)
     log_msg(INFO, "Installed default route via %s (%s) using our EID (%s) as source",
            intf->name, inet_ntop(AF_INET, &intf->address.address.ip,
                                  addr_buf, 128),
-           inet_ntop(AF_INET, &lispd_config.eid_address.address.ip,
+           inet_ntop(lispd_config.eid_address_v4.afi, &lispd_config.eid_address_v4.address.ip,
                      addr_buf2, 128));
     close(sockfd);
     return(TRUE);
 }
 
+/*
+ * install_default_route_v6()
+ *
+ * Installs a default route through the specified interface,
+ * using the configured EID loopback as the source address.
+ */
+static int install_default_route_v6(lispd_if_t *intf, int cleanup)
+{
+    struct nlmsghdr *nlh;
+    struct rtmsg    *rtm;
+    struct rtattr  *rta;
+    int             rta_len = 0;
+    char   sndbuf[4096];
+    char   addr_buf[128];
+    char   addr_buf2[128];
+    int    retval;
+    int    sockfd;
+
+    sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
+
+    if (sockfd < 0) {
+          log_msg(INFO, "Failed to connect to netlink socket for install_default_route()");
+        return(FALSE);
+    }
+
+    /*
+     * Build the command
+     */
+    memset(sndbuf, 0, 4096);
+
+    nlh = (struct nlmsghdr *)sndbuf;
+    rtm = (struct rtmsg *)(sndbuf + sizeof(struct nlmsghdr));
+
+    rta_len = sizeof(struct rtmsg);
+
+    /*
+     * Add the destination
+     */
+    rta = (struct rtattr *)((char *)rtm + sizeof(struct rtmsg));
+    rta->rta_type = RTA_DST;
+    rta->rta_len = sizeof(struct rtattr) + sizeof(struct in6_addr);
+
+    // Address is already zeroed
+    rta_len += rta->rta_len;
+
+    /*
+     * Add the outgoing interface
+     */
+    rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
+    rta->rta_type = RTA_OIF;
+    rta->rta_len = sizeof(struct rtattr) + sizeof(intf->if_index); // if_index
+    memcpy(((char *)rta) + sizeof(struct rtattr), &intf->if_index,
+           sizeof(intf->if_index));
+    rta_len += rta->rta_len;
+
+    nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
+    nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_REPLACE;
+    nlh->nlmsg_type =  RTM_NEWROUTE;
+
+    rtm->rtm_family  =  AF_INET6;
+    rtm->rtm_table    = RT_TABLE_MAIN;
+    rtm->rtm_protocol = RTPROT_STATIC;
+    rtm->rtm_scope    = RT_SCOPE_UNIVERSE;
+    rtm->rtm_type     = RTN_UNICAST;
+    rtm->rtm_dst_len  = 0;
+
+    retval = send(sockfd, sndbuf, NLMSG_LENGTH(rta_len), 0);
+
+    if (retval < 0) {
+        log_msg(INFO, "install_default_route: send() failed %s", strerror(errno));
+        close(sockfd);
+        return(FALSE);
+    }
+    log_msg(INFO, "Installed default route for interface %s using ipv6 EID %s",
+           intf->name,
+           inet_ntop(AF_INET6, lispd_config.eid_address_v6.address.ipv6.s6_addr,
+                     addr_buf2, 128));
+    close(sockfd);
+    return(TRUE);
+}
+
+int install_default_routes(lispd_if_t *intf) {
+
+    if (lispd_config.eid_address_v4.afi) {
+        if (!install_default_route_v4(intf, FALSE)) {
+            return(FALSE);
+        }
+    }
+    if (lispd_config.eid_address_v6.afi) {
+        if (!install_default_route_v6(intf, FALSE)) {
+            return(FALSE);
+        }
+    }
+    return(TRUE);
+}
+
 void cleanup_routes() {
-    install_default_route(primary_interface, TRUE);
+    if (lispd_config.eid_address_v4.afi) {
+        install_default_route_v4(primary_interface, TRUE);
+    }
 }
 
 /*
@@ -974,22 +1093,111 @@ void cleanup_routes() {
 int setup_eid(cfg_t *cfg)
 {
     lisp_addr_t *addr;
-    char *eid_str;
-    char addr_buf[128];
+    char        *v4_eid_str;
+    char        *v6_eid_str;
+    char         addr_buf[128];
 
-    eid_str = cfg_getstr(cfg, "eid-address");
-    if (!eid_str) {
-        log_msg(INFO, "EID address must be specified");
+
+    v4_eid_str = cfg_getstr(cfg, "eid-address-ipv4");
+    v6_eid_str = cfg_getstr(cfg, "eid-address-ipv6");
+
+    if (!(v6_eid_str || v4_eid_str)) {
+        log_msg(ERROR, "Configuration error: at least one ipv4 or ipv6 EID must be specified.");
         return(FALSE);
     }
 
-    lispd_config.eid_address.afi = AF_INET; // IPV4 only XXX
-    inet_pton(AF_INET, eid_str, &lispd_config.eid_address.address.ip);
+    if (v4_eid_str) {
+        if (!inet_pton(AF_INET, v4_eid_str, &lispd_config.eid_address_v4.address.ip)) {
+            log_msg(ERROR, "Configuration error: cannot parse the specified ipv4 EID");
+            return(FALSE);
+        }
+        lispd_config.eid_address_v4.afi = AF_INET;
+    }
+
+    if (v6_eid_str) {
+        if (!inet_pton(AF_INET6, v6_eid_str, lispd_config.eid_address_v6.address.ipv6.s6_addr)) {
+            log_msg(ERROR, "Configuration error: cannot parse the specified ipv6 EID");
+            return(FALSE);
+        }
+        lispd_config.eid_address_v6.afi = AF_INET6;
+    }
 
     /*
-     * Create loopback interface
+     * Create loopback interface for ipv4, ipv6
      */
-    create_loopback(&lispd_config.eid_address, cfg_getstr(cfg, "eid-interface"));
+    create_loopback(&lispd_config.eid_address_v4, cfg_getstr(cfg, "eid-interface"));
+    create_loopback(&lispd_config.eid_address_v6, NULL);
+    return(TRUE);
+}
+
+/*
+ * add_loopback_address_v6
+ *
+ * Installs a host route to the specified interface. This
+ * is specifically for ipv6, since we can have many
+ * loopback addresses hanging off lo without creating
+ * a new one.
+ */
+int add_loopback_address_v6(lisp_addr_t *addr)
+{
+    unsigned int         loindex;
+    struct rtattr       *rta;
+    struct ifaddrmsg    *ifa;
+    struct nlmsghdr     *nlh;
+    char                 sndbuf[4096];
+    int                  retval;
+    int                  sockfd;
+
+    if (!addr) {
+        return(FALSE);
+    }
+
+    loindex = if_nametoindex("lo");
+
+    if (loindex == 0) {
+        log_msg(ERROR, "add_loopback_address_v6: unable to proceed, cannot find index for interface lo");
+        return(FALSE);
+    }
+
+    sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
+
+    if (sockfd < 0) {
+          log_msg(INFO, "Failed to connect to netlink socket for install_host_route()");
+        return(FALSE);
+    }
+
+    /*
+     * Build the command
+     */
+    memset(sndbuf, 0, 4096);
+    nlh = (struct nlmsghdr *)sndbuf;
+    nlh->nlmsg_len = NLMSG_LENGTH(sizeof(struct ifaddrmsg) + sizeof(struct rtattr) +
+                                  sizeof(struct in6_addr));
+    nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_REPLACE;
+    nlh->nlmsg_type = RTM_NEWADDR;
+    ifa = sndbuf + sizeof(struct nlmsghdr);
+
+    ifa->ifa_prefixlen = 128;
+    ifa->ifa_family = AF_INET6;
+    ifa->ifa_index  = loindex;
+    ifa->ifa_scope = RT_SCOPE_HOST;
+    rta = sndbuf + sizeof(struct nlmsghdr) + sizeof(struct ifaddrmsg);
+    rta->rta_type = IFA_LOCAL;
+
+    rta->rta_len = sizeof(struct rtattr) + sizeof(struct in6_addr);
+    memcpy(((char *)rta) + sizeof(struct rtattr), addr->address.ipv6.s6_addr,
+           sizeof(struct in6_addr));
+
+    retval = send(sockfd, sndbuf, nlh->nlmsg_len, 0);
+
+    if (retval < 0) {
+        log_msg(INFO, "add_loopback_address_v6: send() failed %s", strerror(errno));
+        close(sockfd);
+        return(FALSE);
+    }
+
+    log_msg(INFO, "added ipv6 EID to loopback.");
+    close(sockfd);
     return(TRUE);
 }
 
@@ -1006,7 +1214,6 @@ int install_host_route(lisp_addr_t *host, lispd_if_t *intf)
     struct rtattr  *rta;
     int             rta_len = 0;
     char   sndbuf[4096];
-    char   rcvbuf[4096];
     int    readlen;
     int    retval;
     struct nlmsghdr *rcvhdr;
@@ -1077,7 +1284,7 @@ int install_host_route(lisp_addr_t *host, lispd_if_t *intf)
     memset(&nladdr, 0, sizeof(nladdr));
     nladdr.nl_family = AF_NETLINK;
 
-    retval = send(sockfd, sndbuf, NLMSG_LENGTH(rta_len), 0);
+    retval = send(sockfd, sndbuf, NLMSG_LENGTH(rta_len), 0); // XXXX FIXME: Length looks wrong
 
     if (retval < 0) {
         log_msg(INFO, "install_hostroute: send() failed %s", strerror(errno));
@@ -1262,6 +1469,7 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
 {
     lispd_pkt_echo_reply_t *reply;
     lispd_pkt_nat_lcaf_t   *nat_lcaf;
+    lispd_pkt_lcaf_addr_t  *lcaf_addr;
     lispd_pkt_lcaf_t       *lcaf;
     lispd_if_t             *intf = if_list;
     uint16_t                translated_port = 0;
@@ -1300,11 +1508,12 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
                     lispd_config.local_data_port);
 
         translated_port = ntohs(nat_lcaf->port);
+        lcaf_addr = (lispd_pkt_lcaf_addr_t *)nat_lcaf->addresses;
 
-        if (ntohs(nat_lcaf->afi) == LISP_AFI_IP) {
-            memcpy(&reply_addr, nat_lcaf->address, sizeof(struct in_addr));
+        if (ntohs(lcaf_addr->afi) == LISP_AFI_IP) {
+            memcpy(&reply_addr, lcaf_addr->address, sizeof(struct in_addr));
         } else {
-            log_msg(ERROR, "    Unsupported LISP AFI %d in LISP LCAF", ntohs(nat_lcaf->afi));
+            log_msg(ERROR, "    Unsupported LISP AFI %d in LISP LCAF", ntohs(lcaf_addr->afi));
             return(FALSE);
         }
         break;
@@ -1359,7 +1568,7 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
                     if (is_nat_complete(intf) && (get_live_interface_count() == 1)) {
                         reconfigure_lisp_interfaces();
                         install_database_mappings();
-                        map_register(AF4_database);
+                        map_register();
                         set_timer(NATDetectRetry, NAT_PERIODIC_CHECK_TIME);
                     } else {
 
@@ -1395,16 +1604,17 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
  */
 int send_lisp_echo_request(lispd_if_t *intf)
 {
-    lispd_pkt_echo_t     *pkt;
-    lispd_pkt_lcaf_t     *lcaf;
-    lispd_pkt_nat_lcaf_t *nat_lcaf;
+    lispd_pkt_echo_t      *pkt;
+    lispd_pkt_lcaf_t      *lcaf;
+    lispd_pkt_nat_lcaf_t  *nat_lcaf;
+    lispd_pkt_lcaf_addr_t *lcaf_addr;
     struct sockaddr_in    map_server;
     int                   nbytes, size;
     char                  addr_buf[128];
 
     if (lispd_config.use_nat_lcaf) {
         size = sizeof(lispd_pkt_echo_t) + sizeof(lispd_pkt_lcaf_t) +
-               sizeof(lispd_pkt_nat_lcaf_t) + sizeof(struct in_addr); // XXX v4 only
+               sizeof(lispd_pkt_nat_lcaf_t) + 3 * sizeof(lispd_pkt_lcaf_addr_t); // XXX v4 only
     } else {
         size = sizeof(lispd_pkt_echo_t);
     }
@@ -1422,12 +1632,22 @@ int send_lisp_echo_request(lispd_if_t *intf)
     if (lispd_config.use_nat_lcaf) {
         lcaf = (lispd_pkt_lcaf_t *)pkt->data;
         lcaf->afi = htons(LISP_AFI_LCAF);
-        lcaf->length = htons(4 + sizeof(struct in_addr) + sizeof(uint16_t));
+        lcaf->length = htons(4 + 3 * sizeof(uint16_t));
         lcaf->flags = 0;
         lcaf->type = LISP_LCAF_NAT;
         nat_lcaf = (lispd_pkt_nat_lcaf_t *)lcaf->address;
         nat_lcaf->port = htons(lispd_config.local_control_port);
-        nat_lcaf->afi = 0;
+
+        /*
+         * Fill in NULL afi's for the three addresses
+         * (global, private and NTR RLOCs).
+         */
+        lcaf_addr = (lispd_pkt_lcaf_addr_t *)nat_lcaf->addresses;
+        lcaf_addr->afi = 0;
+        lcaf_addr = (lispd_pkt_lcaf_addr_t *)lcaf_addr->address;
+        lcaf_addr->afi = 0;
+        lcaf_addr = (lispd_pkt_lcaf_addr_t *)lcaf_addr->address;
+        lcaf_addr->afi = 0;
     }
     memset((char *)&map_server, 0, sizeof(struct sockaddr_in));
     map_server.sin_family = AF_INET;

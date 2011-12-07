@@ -52,6 +52,7 @@ typedef struct datacache_elt_t_ {
     lisp_addr_t             target_addr;
     uint8_t                 retries;
     struct timeval          last_sent;
+    struct timeval          scheduled_to_send;
     request_type_e          type;
     struct datacache_elt_t_ *next;
 } datacache_elt_t;
@@ -169,7 +170,7 @@ int build_datacache_entry(lisp_addr_t *eid_prefix,
                        uint64_t nonce,
                        request_type_e type);
 void schedule_smr(lisp_cache_sample_msg_t *);
-int find_eid_in_datacache(lisp_addr_t *eid_prefix,
+datacache_elt_t *find_eid_in_datacache(lisp_addr_t *eid_prefix,
                           uint8_t eid_prefix_length);
 int remove_eid_from_datacache(uint64_t);
 void build_rloc_probe_work_item(lisp_cache_sample_msg_t *sample);

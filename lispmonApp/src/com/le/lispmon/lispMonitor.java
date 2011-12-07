@@ -77,6 +77,33 @@ public class lispMonitor extends Activity implements OnClickListener {
         }
         );
     
+        Button datacache = (Button) findViewById(R.id.showDataCacheButton);
+        datacache.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+                Intent myIntent = new Intent(view.getContext(), dataCacheActivity.class);
+                startActivityForResult(myIntent, 0);
+            }
+        }
+        );
+
+        Button clearcache = (Button) findViewById(R.id.showClearCacheButton);
+        clearcache.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+                Intent myIntent = new Intent(view.getContext(), clearCacheActivity.class);
+                startActivityForResult(myIntent, 0);
+            }
+        }
+        );
+        
+        Button updateconf = (Button) findViewById(R.id.updateConfButton);
+        updateconf.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+                Intent myIntent = new Intent(view.getContext(), updateConfActivity.class);
+                startActivityForResult(myIntent, 0);
+            }
+        }
+        );
+
         Log.v("lispMonitor", "Creating...");
     }
     

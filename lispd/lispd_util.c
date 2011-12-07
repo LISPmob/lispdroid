@@ -103,7 +103,7 @@ int copy_addr(void *a1, lisp_addr_t *a2, int afi, int convert)
             ((struct in_addr *) a1)->s_addr = a2->address.ip.s_addr;
         return(sizeof(struct in_addr));
     case AF_INET6:
-        memcpy(((struct in6_addr *) a1)->s6_addr,
+        memcpy(a1,
                a2->address.ipv6.s6_addr,
                sizeof(struct in6_addr));
         return(sizeof(struct in6_addr));
@@ -393,7 +393,7 @@ struct udphdr *build_ip_header(void *cur_ptr, lisp_addr_t *src,
         ip6h->ip6_hops = 255;
         ip6h->ip6_vfc  = (IP6VERSION << 4);
         ip6h->ip6_nxt  = IPPROTO_UDP;
-        ip6h->ip6_plen = htons(ip_len);
+        ip6h->ip6_plen = htons(ip_len - sizeof(struct ip6_hdr)); // Don't include header length
         memcpy(ip6h->ip6_src.s6_addr,
                src->address.ipv6.s6_addr,
                sizeof(struct in6_addr));
@@ -518,6 +518,7 @@ void dump_database_entry(lispd_locator_chain_t *chain, lispd_locator_chain_elt_t
     int              afi; 
     char             eid[128];
     char             rloc[128];
+
     char             buf[128];
 
     afi = chain->eid_prefix.afi;
@@ -530,18 +531,19 @@ void dump_database_entry(lispd_locator_chain_t *chain, lispd_locator_chain_elt_t
                   &(db_entry->locator_addr.address),
                   rloc, 128);
     } else {
-        if (!db_entry->interface->nat_type != NATOff) {
-            if (is_nat_complete(db_entry->interface)) {
-                inet_ntop(db_entry->interface->nat_address.afi,
-                          &db_entry->interface->nat_address,
-                          rloc, 128);
-            } else {
-                sprintf(rloc, "No Address");
-            }
+        if (db_entry->interface->nat_type == NATOff) {
+        inet_ntop(db_entry->interface->address.afi,
+                  &db_entry->interface->address,
+                  rloc, 128);
         } else {
-            inet_ntop(db_entry->interface->address.afi,
-                      &db_entry->interface->address,
-                      rloc, 128);
+    if (is_nat_complete(db_entry->interface)) {
+        inet_ntop(db_entry->interface->nat_address.afi,
+                  &db_entry->interface->nat_address,
+                  rloc, 128);
+    } else {
+        sprintf(rloc, "No Address");
+    }
+
         }
     }
     if (db_entry->locator_type == DYNAMIC_LOCATOR)
@@ -649,6 +651,22 @@ void dump_map_cache(void)
 	       (map_cache_entry->how_learned == STATIC_MAP_CACHE_ENTRY)
 	       ? "static" : "dynamic");
         map_cache = map_cache->next;
+    }
+}
+
+void dump_interfaces(FILE *fp)
+{
+    lispd_if_t *if_list;
+    char addrstr[128];
+
+    if_list = get_interface_list();
+
+    while (if_list) {
+        inet_ntop(if_list->address.afi, &if_list->address.address, addrstr, 128);
+        fprintf(fp, "  %6s: %4s, %15s%s, pref: %2d\n",
+                if_list->name, (if_list->flags & IFF_UP) ? "up" : "down", addrstr,
+                (if_list->nat_type != NATOff) ? "(N)" : "", if_list->dev_prio);
+        if_list = if_list->next_if;
     }
 }
 

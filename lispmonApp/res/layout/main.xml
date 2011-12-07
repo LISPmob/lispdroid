@@ -18,6 +18,17 @@
             <Button android:layout_width="match_parent" android:text="@string/showLogString" android:id="@+id/showLogButton" android:layout_height="wrap_content" android:layout_gravity="right" android:layout_weight="1"></Button>
         </TableRow>
     </TableLayout>
+    <TableLayout android:layout_height="wrap_content" android:id="@+id/tableLayout3" android:layout_width="match_parent">
+    	<TableRow android:id="@+id/tableRow3" android:layout_height="wrap_content" android:layout_width="match_parent">
+			<Button android:layout_width="match_parent" android:text="@string/showDataCacheString" android:layout_height="wrap_content" android:layout_weight="1" android:id="@+id/showDataCacheButton"></Button>
+            <Button android:layout_width="match_parent" android:text="@string/showClearCacheString" android:id="@+id/showClearCacheButton" android:layout_height="wrap_content" android:layout_gravity="right" android:layout_weight="1"></Button>						    		
+    	</TableRow>
+    </TableLayout>
+    <TableLayout android:layout_height="wrap_content" android:id="@+id/tableLayout4" android:layout_width="match_parent">
+    	<TableRow android:id="@+id/tableRow6" android:layout_height="wrap_content" android:layout_width="match_parent">
+			<Button android:id="@+id/updateConfButton" android:layout_width="match_parent" android:text="@string/updateConfString" android:layout_height="wrap_content" android:layout_weight="1"></Button>
+    	</TableRow>
+    </TableLayout>
     <LinearLayout android:id="@+id/linearLayout2" android:baselineAligned="false" android:orientation="vertical" android:layout_width="wrap_content" android:layout_height="wrap_content">
     </LinearLayout>
     <ScrollView android:layout_height="wrap_content" android:id="@+id/scrollView2" android:layout_width="match_parent">

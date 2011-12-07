@@ -78,14 +78,20 @@ public class pingActivity extends Activity implements OnItemSelectedListener {
 		StringBuffer output = new StringBuffer();
 		running = true;
 		Process process = null;
-	
 		int timeoutCounter = 100;
-		
+		String command = "/system/bin/busybox";
+		String extraArg = "";
+		if (address.contains(":")) {
+			extraArg = "ping6";
+		} else {
+			command = "/system/bin/ping";
+			extraArg = "-i1";
+		}
 		String sizeArg = "-s";
 		sizeArg = sizeArg.concat(Integer.toString(mPingSize));
 		try {
 			process = new ProcessBuilder()
-			.command("/system/bin/ping", "-c100", sizeArg, address) // c 100 prevents running forever if lispmonapp crashes
+			.command(command, extraArg, "-c100", sizeArg, address) // c 100 prevents running forever if lispmonapp crashes
 			.redirectErrorStream(true)
 			.start();
 			InputStream in = process.getInputStream();
@@ -460,7 +466,7 @@ public class pingActivity extends Activity implements OnItemSelectedListener {
 	    }
 		return super.onOptionsItemSelected(item);
 	}
-	int mPingSize = 100;
+	int mPingSize = 56;
 	
 	protected Dialog onCreateDialog(int id) {
 		Dialog dialog = new Dialog(this);

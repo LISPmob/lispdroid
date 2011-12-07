@@ -201,7 +201,6 @@ int install_database_mappings_afi(patricia_tree_t *tree)
 {
     patricia_node_t		*node;
     lispd_locator_chain_t	*locator_chain;
-    lispd_locator_chain_elt_t	*locator_chain_elt;
     int			        retval = 1;
    
     if (!tree)
@@ -262,6 +261,7 @@ void clear_map_cache(void)
     cmd.length = 0;
     cmd.type = LispMapCacheClear;
 
+    log_msg(INFO, "Calling send_command with map cache");
     send_command(&cmd, cmd_length);
 }
 
@@ -456,6 +456,7 @@ int install_map_cache_entries()
 void handle_cache_miss_msg(lisp_cmd_t *cmd)
 {
     char addrstr[128];
+    int  eid_prefix_len;
     lisp_cache_sample_msg_t *miss_msg = (lisp_cache_sample_msg_t *)cmd->val;
 
     if (cmd->length < sizeof(lisp_cache_sample_msg_t)) {
@@ -468,14 +469,15 @@ void handle_cache_miss_msg(lisp_cmd_t *cmd)
      *
      */
     if (miss_msg->eid.afi == AF_INET6) {
-        log_msg(INFO, "Ignoring V6 EID cache miss. IPV6 currently unsupported.");
-        return;
+       eid_prefix_len = 128;
+    } else {
+        eid_prefix_len = 32;
     }
-    if (!find_eid_in_datacache(&miss_msg->eid, 32)) {
-        if (!build_and_send_map_request(&miss_msg->eid, 32)) { // Always /32 or /128? XXX
+    if (!find_eid_in_datacache(&miss_msg->eid, eid_prefix_len)) {
+        if (!build_and_send_map_request(&miss_msg->eid, eid_prefix_len)) { // Always /32 or /128? XXX
             log_msg(INFO,"handle_cache_miss_msg:couldn't build/send map_request");
         }
-        inet_ntop(AF_INET, &miss_msg->eid.address, addrstr, 32);
+        inet_ntop(miss_msg->eid.afi, &miss_msg->eid.address, addrstr, 128);
         log_msg(INFO, "built and send map request for %s", addrstr);
     } else {
 #ifdef DEBUG_CACHE_MISS
