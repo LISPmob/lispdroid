@@ -16,6 +16,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Environment;
+import android.util.Log;
 import android.view.View;
 import android.content.DialogInterface;
 import android.widget.EditText;
@@ -31,6 +32,7 @@ public class updateConfActivity extends Activity {
 	public String MR = "";
 	public String MS = "";
 	public String MSKey = "";
+	public String DNS = "";
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -82,6 +84,12 @@ public class updateConfActivity extends Activity {
 					MR = tmp_1[1];
 					EditText e = (EditText) findViewById(R.id.updateConfMRText);
 					e.setText(MR);
+				} else if (line.contains("override-dns") && !line.contains("#")) {	
+						String[] tmp = line.split("=");
+						String[] tmp2 = tmp[1].split(" ");
+						DNS = tmp2[1];
+						EditText e = (EditText)findViewById(R.id.updateConfDNSText);
+						e.setText(DNS);
 				} else if (line.contains("map-server") && !line.contains("#")) {
 					boolean flg1=false, flg2=false;
 					do {
@@ -99,7 +107,7 @@ public class updateConfActivity extends Activity {
 							MSKey = tmp_1[1];
 							flg2 = true;
 						}
-					}while (flg1 == false || flg2 == false);
+					} while (flg1 == false || flg2 == false);
 					
 					EditText e = (EditText) findViewById(R.id.updateConfMSText);
 					e.setText(MS);
@@ -130,7 +138,6 @@ public class updateConfActivity extends Activity {
 			String defText;
 			defText = new StringBuilder()
 			          .append("#\n")
-			          .append("#lispd config - dino-mn \n")
 			          .append("#Include the following configuration before giving out the device \n")
 			          .append("# map-resolver = asp-isis (198.6.255.40) \n")
 			          .append("# eid-address-ipv4 = 0.0.0.0 \n")
@@ -238,6 +245,42 @@ public class updateConfActivity extends Activity {
 		return str;
 	}
 	
+	public String replace_if_required_dns(String str)
+	{
+		Pattern DNSipv4Ptrn = Pattern.compile("^(\\s*)(\\S*)(\\s*)override-dns(\\s*)=(\\s*)(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})(\\s*)");
+		Matcher DNSipv4Mtchr = DNSipv4Ptrn.matcher(str);
+		
+		if (DNSipv4Mtchr.matches()) {
+			String[] tmp_1 = str.split("=");
+			Pattern ipaddrPtrn = Pattern.compile("(\\s*)(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})(\\s*)");
+			Matcher ipaddrMtchr = ipaddrPtrn.matcher(tmp_1[1]);
+			if (ipaddrMtchr.matches()) {
+				StringBuilder op = new StringBuilder();
+				op.append(ipaddrMtchr.group(2));op.append(".");
+				op.append(ipaddrMtchr.group(3));op.append(".");
+				op.append(ipaddrMtchr.group(4));op.append(".");
+				op.append(ipaddrMtchr.group(5));
+				
+				if ( op.toString().equals(DNS) ) { 
+					EditText e = (EditText) findViewById(R.id.updateConfDNSText);
+					
+					if (e.getText().toString().length() == 0) {
+						str = "";
+						//displayMessage("Clearing override DNS config", false, null);
+					} else {
+						StringBuilder opStr = new StringBuilder();
+						opStr.append(tmp_1[0]); opStr.append("= ");
+						opStr.append(e.getText().toString());
+						str = opStr.toString();
+						//displayMessage("The string is :"+str+":", false, null);
+					}
+				}
+			}
+		}
+		
+		return str;
+	}
+	
 	public String replace_if_required_eidipv4_dbmapping(String str)
 	{
 		Pattern eidipv4PrefPtrn = Pattern.compile("^(\\s*)eid-prefix(\\s*)=(\\s*)(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})/(\\d{1,2})(\\s*)");
@@ -299,7 +342,7 @@ public class updateConfActivity extends Activity {
 					opStr.append(tmp_1[0]); opStr.append("= ");
 					opStr.append(e.getText().toString());
 					str = opStr.toString();
-					//displayMessage("The string is :"+str+":", false, null);
+				    //displayMessage("The string is :"+str+":", false, null);
 				}
 			}
 		}
@@ -348,6 +391,7 @@ public class updateConfActivity extends Activity {
 		StringBuilder out = new StringBuilder();
 		String[] tmp = str.split("\n");
 		int i=0;
+		boolean DNSwasfound = false;
 			
 		while (i < tmp.length) {
 			
@@ -355,10 +399,29 @@ public class updateConfActivity extends Activity {
 			tmp[i] = replace_if_required_eidipv4_dbmapping(tmp[i]);
 			tmp[i] = replace_if_required_mr(tmp[i]);
 			tmp[i] = replace_if_required_ms(tmp[i]);
+			tmp[i] = replace_if_required_dns(tmp[i]);
 			
+			if (tmp[i].contains("override-dns")) {
+				DNSwasfound = true;
+			}
 			out.append(tmp[i]);
 			out.append("\n");
 			i++;
+		}
+		
+		EditText DNSe = (EditText)findViewById(R.id.updateConfDNSText);
+		
+		// If DNS went from unconfigured to configured, add the line.
+		if (!DNSwasfound && (DNSe.getText().toString().length() > 0)) {
+	
+			int index = out.toString().indexOf("eid-interface");
+			
+			StringBuilder DNSString = new StringBuilder();
+			DNSString.append("override-dns = ");
+			DNSString.append(DNSe.getText().toString());
+			DNSString.append("\n");
+			
+			out.insert(index, DNSString.toString());
 		}
 		
 		EditText e = (EditText) findViewById(R.id.updateConfeid4Text);
