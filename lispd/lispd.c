@@ -62,6 +62,7 @@ void init(void) {
     /*
      *	config paramaters
      */
+    memset(&lispd_config, 0, sizeof(lispd_config));
     lispd_config.map_resolvers	= 0;
     lispd_config.map_servers	= 0;
     lispd_config.config_file			= "lispd.conf";
@@ -80,6 +81,7 @@ void init(void) {
     lispd_config.translated_control_port        = 0;
     lispd_config.rloc_probe_interval            = DEFAULT_PROBE_INTERVAL;
     lispd_config.rloc_probe_retries             = DEFAULT_PROBE_RETRIES;
+    lispd_config.use_dns_override               = FALSE;
 }
 
 void dump_info_file(void) {
@@ -147,8 +149,13 @@ void dump_info_file(void) {
     dump_database(AF6_database, AF_INET6, fp);
 
     if (lispd_config.use_dns_override) {
-        fprintf(fp, "LISP DNS Resolver: %s", inet_ntop(AF_INET, &lispd_config.dns_override_address.address,
+        fprintf(fp, "LISP DNS Resolver: %s", inet_ntop(AF_INET, &lispd_config.dns_override_address1.address,
                                                        addr_buf, 128));
+
+        if (lispd_config.dns_override_address2.address.ip.s_addr != 0) {
+            fprintf(fp, "\nLISP Second DNS Resolver: %s", inet_ntop(AF_INET, &lispd_config.dns_override_address2.address,
+                                                                 addr_buf, 128));
+        }
     }
     fclose(fp);
 }

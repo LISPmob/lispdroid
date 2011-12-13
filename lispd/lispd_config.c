@@ -110,7 +110,8 @@ int handle_lispd_config_file(void)
         CFG_STR("eid-address-ipv4",          0, CFGF_NONE),
         CFG_STR("eid-address-ipv6",          0, CFGF_NONE),
         CFG_SEC("interface", if_opts, CFGF_MULTI),
-        CFG_STR("override-dns",         0, CFGF_NONE),
+        CFG_STR("override-dns-primary",         0, CFGF_NONE),
+        CFG_STR("override-dns-secondary",       0, CFGF_NONE),
 	CFG_END()
     };
 
@@ -202,7 +203,8 @@ int handle_lispd_config_file(void)
      * the DNS server provided by DHCP filters based on source address,
      * or fails uRPF.
      */
-    lispd_config.use_dns_override = set_dns_override(cfg_getstr(cfg, "override-dns"));
+    lispd_config.use_dns_override = set_dns_override(cfg_getstr(cfg, "override-dns-primary"),
+                                                     cfg_getstr(cfg, "override-dns-secondary"));
 
     /*
      *	handle map-resolver config XXX should check for multiples, none
@@ -292,47 +294,90 @@ int set_petr_addr(char *petr_addr_str)
  * Change the default DNS resolver address to something specified in the configuration
  * file. This uses the Android system properties, so may need to change based on version.
  */
-int set_dns_override(char *dns_server)
+int set_dns_override(char *dns_server1, char *dns_server2)
 {
 
-    char value[128];
-    char def_value[128];
+    char value1[128];
+    char def_value1[128];
+
+    char value2[128];
+    char def_value2[128];
+
+    char secondary_is_set = FALSE;
 
 #ifndef ANDROID
     log_msg(ERROR, "DNS override is only supported on Android, option ignored.");
     return(FALSE);
 #endif
 
-    if (!dns_server) {
+    memset(value1, 0, 128);
+    memset(value2, 0, 128);
+    if (dns_server2 && !dns_server1) {
+        log_msg(ERROR, "Secondary DNS server cannot be specified without a primary.");
         return(FALSE);
     }
-    property_get("net.dns1", value, def_value);
-
-    log_msg(INFO, "Current DNS Address is %s", value);
-
-    lispd_config.original_dns_address.afi = AF_INET;
-    if (!inet_pton(AF_INET, value, (void *)&lispd_config.original_dns_address.address.ip)) {
-        log_msg(ERROR, "Unable to cache original DNS resolver address");
+    if (!dns_server1) {
         return(FALSE);
     }
 
-    if (!inet_pton(AF_INET, dns_server, (void *)&lispd_config.dns_override_address.address.ip)) {
-        log_msg(ERROR, "Unable to parse override DNS resolver address, check config");
+    property_get("net.dns1", value1, 0);
+    property_get("net.dns2", value2, 0);
+
+    secondary_is_set = (strlen(value2) != 0);
+
+    log_msg(INFO, "Current DNS Primary Address is %s", value1);
+
+    if (secondary_is_set != 0) {
+        log_msg(INFO, "Current DNS Secondary Address is %s ", value2);
+    }
+
+    lispd_config.original_dns_address1.afi = AF_INET;
+    if (!inet_pton(AF_INET, value1, (void *)&lispd_config.original_dns_address1.address.ip)) {
+        log_msg(ERROR, "Unable to store original primary DNS resolver address");
         return(FALSE);
     }
 
-    property_set("net.dns1", dns_server);
+    if (secondary_is_set) {
+        lispd_config.original_dns_address2.afi = AF_INET;
+        if (!inet_pton(AF_INET, value2, (void *)&lispd_config.original_dns_address2.address.ip)) {
+            log_msg(ERROR, "Unable to store original secondary DNS resolver address");
+            return(FALSE);
+        }
+    } else {
+        memset(&lispd_config.original_dns_address2, 0, sizeof(lisp_addr_t));
+    }
+
+    if (!inet_pton(AF_INET, dns_server1, (void *)&lispd_config.dns_override_address1.address.ip)) {
+        log_msg(ERROR, "Unable to parse override primary DNS resolver address, check config");
+        return(FALSE);
+    }
+
+    if (dns_server2) {
+        if (!inet_pton(AF_INET, dns_server2, (void *)&lispd_config.dns_override_address2.address.ip)) {
+            log_msg(ERROR, "Unable to parse override secondary DNS resolver address, check config");
+            return(FALSE);
+        }
+    }
+
+    property_set("net.dns1", dns_server1);
+
+    if (dns_server2) {
+        property_set("net.dns2", dns_server2);
+        log_msg(INFO, "Set secondary DNS override.");
+    }
     return(TRUE);
 }
 
 /*
- * restore_dns_server
+ * restore_dns_servers
  *
  * Restore the original DNS resolver on exit, if we can.
  */
-int restore_dns_server(void)
+int restore_dns_servers(void)
 {
-    char server_str[128];
+    char server_str1[128];
+    char server_str2[128];
+
 #ifndef ANDROID
     log_msg(ERROR, "DNS override is only supported on Android");
     return(FALSE);
@@ -343,14 +388,25 @@ int restore_dns_server(void)
         return(FALSE);
     }
 
-
-    if (!inet_ntop(AF_INET, &lispd_config.dns_override_address.address.ip,
-                   server_str, 128)) {
+    if (!inet_ntop(AF_INET, &lispd_config.original_dns_address1.address.ip,
+                   server_str1, 128)) {
         log_msg(ERROR, "Unable to parse original DNS server string.");
         return(FALSE);
+    } else {
+        log_msg(INFO, "DNS Primary is now %s", server_str1);
     }
 
-    property_set("net.dns1", server_str);
+    if (lispd_config.original_dns_address2.address.ip.s_addr != 0) {
+        if (!inet_ntop(AF_INET, &lispd_config.original_dns_address2.address.ip,
+                       server_str2, 128)) {
+            log_msg(ERROR, "Unable to parse original secondary DNS server string.");
+        }
+        property_set("net.dns2", server_str2);
+        log_msg(INFO, "DNS Secondary is now %s", server_str2);
+    } else {
+        property_set("net.dns2", "");
+    }
+    property_set("net.dns1", server_str1);
     return(TRUE);
 }
 
@@ -377,12 +433,14 @@ int set_kernel_rloc(lisp_addr_t *addr)
 
     memset(cmd, 0, cmd_length);
     rloc_msg = (lisp_set_rloc_msg_t *)cmd->val;
-    rloc = (rloc_t *)&rloc_msg->rlocs;
-    memcpy(&rloc->addr, &addr->address, sizeof(lisp_addr_t));
+
+    rloc = (rloc_t *)rloc_msg->rlocs;
+    memcpy(&rloc->addr, addr, sizeof(lisp_addr_t));
+
     rloc->if_index = 0;
     rloc_msg->count = 1;
     cmd->type = LispSetRLOC;
-    cmd->length = sizeof(lisp_set_rloc_msg_t);
+    cmd->length = sizeof(lisp_set_rloc_msg_t) + sizeof(rloc_t);
     if (send_command(cmd, cmd_length)) {
         free(cmd);
         return TRUE;
