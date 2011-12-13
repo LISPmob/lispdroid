@@ -19,6 +19,7 @@ import android.os.Environment;
 import android.util.Log;
 import android.view.View;
 import android.content.DialogInterface;
+import android.widget.CheckBox;
 import android.widget.EditText;
 
 
@@ -32,7 +33,9 @@ public class updateConfActivity extends Activity {
 	public String MR = "";
 	public String MS = "";
 	public String MSKey = "";
-	public String DNS = "";
+	public String DNS1 = "";
+	public String DNS2 = "";
+	public boolean overrideDNS = false; 
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -84,13 +87,28 @@ public class updateConfActivity extends Activity {
 					MR = tmp_1[1];
 					EditText e = (EditText) findViewById(R.id.updateConfMRText);
 					e.setText(MR);
-				} else if (line.contains("override-dns") && !line.contains("#")) {	
+				} else if (line.contains("override-dns-primary") && !line.contains("#")) {	
 						String[] tmp = line.split("=");
 						String[] tmp2 = tmp[1].split(" ");
-						DNS = tmp2[1];
-						EditText e = (EditText)findViewById(R.id.updateConfDNSText);
-						e.setText(DNS);
+						DNS1 = tmp2[1];
+						EditText e = (EditText)findViewById(R.id.updateConfDNS1Text);
+						e.setText(DNS1);
+						e.setEnabled(true);
+						overrideDNS = true;
+						CheckBox c = (CheckBox)findViewById(R.id.updateConfDNSCheck);
+						c.setChecked(true);
+				} else if (line.contains("override-dns-secondary") && !line.contains("#")) {
+					String[] tmp = line.split("=");
+					String[] tmp2 = tmp[1].split(" ");
+					DNS2 = tmp2[1];
+					EditText e = (EditText)findViewById(R.id.updateConfDNS2Text);
+					e.setText(DNS2);
+					e.setEnabled(true);
+					overrideDNS = true;
+					CheckBox c = (CheckBox)findViewById(R.id.updateConfDNSCheck);
+					c.setChecked(true);
 				} else if (line.contains("map-server") && !line.contains("#")) {
+				
 					boolean flg1=false, flg2=false;
 					do {
 						String line_1 = br.readLine();
@@ -245,9 +263,9 @@ public class updateConfActivity extends Activity {
 		return str;
 	}
 	
-	public String replace_if_required_dns(String str)
+	public String replace_if_required_primary_dns(String str)
 	{
-		Pattern DNSipv4Ptrn = Pattern.compile("^(\\s*)(\\S*)(\\s*)override-dns(\\s*)=(\\s*)(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})(\\s*)");
+		Pattern DNSipv4Ptrn = Pattern.compile("^(\\s*)(\\S*)(\\s*)override-dns-primary(\\s*)=(\\s*)(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})(\\s*)");
 		Matcher DNSipv4Mtchr = DNSipv4Ptrn.matcher(str);
 		
 		if (DNSipv4Mtchr.matches()) {
@@ -261,10 +279,46 @@ public class updateConfActivity extends Activity {
 				op.append(ipaddrMtchr.group(4));op.append(".");
 				op.append(ipaddrMtchr.group(5));
 				
-				if ( op.toString().equals(DNS) ) { 
-					EditText e = (EditText) findViewById(R.id.updateConfDNSText);
+				if ( op.toString().equals(DNS1) ) { 
+					EditText e = (EditText) findViewById(R.id.updateConfDNS1Text);
 					
-					if (e.getText().toString().length() == 0) {
+					if (!overrideDNS) {
+						str = "";
+						//displayMessage("Clearing override DNS config", false, null);
+					} else {
+						StringBuilder opStr = new StringBuilder();
+						opStr.append(tmp_1[0]); opStr.append("= ");
+						opStr.append(e.getText().toString());
+						str = opStr.toString();
+						//displayMessage("The string is :"+str+":", false, null);
+					}
+				}
+			}
+		}
+		
+		return str;
+	}
+	
+	public String replace_if_required_secondary_dns(String str)
+	{
+		Pattern DNSipv4Ptrn = Pattern.compile("^(\\s*)(\\S*)(\\s*)override-dns-secondary(\\s*)=(\\s*)(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})(\\s*)");
+		Matcher DNSipv4Mtchr = DNSipv4Ptrn.matcher(str);
+		
+		if (DNSipv4Mtchr.matches()) {
+			String[] tmp_1 = str.split("=");
+			Pattern ipaddrPtrn = Pattern.compile("(\\s*)(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})(\\s*)");
+			Matcher ipaddrMtchr = ipaddrPtrn.matcher(tmp_1[1]);
+			if (ipaddrMtchr.matches()) {
+				StringBuilder op = new StringBuilder();
+				op.append(ipaddrMtchr.group(2));op.append(".");
+				op.append(ipaddrMtchr.group(3));op.append(".");
+				op.append(ipaddrMtchr.group(4));op.append(".");
+				op.append(ipaddrMtchr.group(5));
+				
+				if ( op.toString().equals(DNS2) ) { 
+					EditText e = (EditText) findViewById(R.id.updateConfDNS2Text);
+					
+					if (!overrideDNS) {
 						str = "";
 						//displayMessage("Clearing override DNS config", false, null);
 					} else {
@@ -399,9 +453,10 @@ public class updateConfActivity extends Activity {
 			tmp[i] = replace_if_required_eidipv4_dbmapping(tmp[i]);
 			tmp[i] = replace_if_required_mr(tmp[i]);
 			tmp[i] = replace_if_required_ms(tmp[i]);
-			tmp[i] = replace_if_required_dns(tmp[i]);
-			
-			if (tmp[i].contains("override-dns")) {
+			tmp[i] = replace_if_required_primary_dns(tmp[i]);
+			tmp[i] = replace_if_required_secondary_dns(tmp[i]);
+
+			if (tmp[i].contains("override-dns-primary")) {
 				DNSwasfound = true;
 			}
 			out.append(tmp[i]);
@@ -409,15 +464,20 @@ public class updateConfActivity extends Activity {
 			i++;
 		}
 		
-		EditText DNSe = (EditText)findViewById(R.id.updateConfDNSText);
+		EditText DNSe = (EditText)findViewById(R.id.updateConfDNS1Text);
 		
 		// If DNS went from unconfigured to configured, add the line.
-		if (!DNSwasfound && (DNSe.getText().toString().length() > 0)) {
+		if (!DNSwasfound && overrideDNS) {
 	
 			int index = out.toString().indexOf("eid-interface");
 			
 			StringBuilder DNSString = new StringBuilder();
-			DNSString.append("override-dns = ");
+			DNSString.append("override-dns-primary = ");
+			DNSString.append(DNSe.getText().toString());
+			DNSString.append("\n");
+			
+			DNSString.append("override-dns-secondary = ");
+		    DNSe = (EditText)findViewById(R.id.updateConfDNS2Text);
 			DNSString.append(DNSe.getText().toString());
 			DNSString.append("\n");
 			
@@ -476,6 +536,27 @@ public class updateConfActivity extends Activity {
 			displayMessage("Error while writing file to sdcard!! "+e, false, null);
 		}
 		
+	}
+	
+	public void updateConfDNSClicked(View v) 
+	{
+		CheckBox c = (CheckBox)v;
+		if (c.isChecked()) {
+			overrideDNS = true;
+			
+			EditText e = (EditText)findViewById(R.id.updateConfDNS1Text);
+			e.setEnabled(true);
+			
+			e = (EditText)findViewById(R.id.updateConfDNS2Text);
+			e.setEnabled(true);
+		} else {
+			overrideDNS = false;
+			EditText e = (EditText)findViewById(R.id.updateConfDNS1Text);
+			e.setEnabled(false);
+			
+			e = (EditText)findViewById(R.id.updateConfDNS2Text);
+			e.setEnabled(false);
+		}
 	}
 	
 	public void updateConfClicked(View v) 

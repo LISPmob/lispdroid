@@ -17,8 +17,8 @@
     
     <string name="updateConfTitleString">Current LISP Configuration</string>
     <string name="updateConfString">Update LISP Configuration</string>
-    <string name="updateConfeid4String">EID-Address-IPv4: </string>
-    <string name="updateConfeid6String">EID-Address-IPv6: </string>
+    <string name="updateConfeid4String">EID-IPv4: </string>
+    <string name="updateConfeid6String">EID-IPv6: </string>
     <string name="updateConfChgString">Update Configuration</string> 
     <string name="updateConfUpdString">Save Changes</string> 
     <string name="updateConfMRString">Map-Resolver</string> 

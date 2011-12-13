@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
 	android:layout_width="fill_parent"
-	android:layout_height="fill_parent" android:orientation="vertical">
-		
-    <LinearLayout android:layout_width="match_parent" android:id="@+id/updateConfLinearLayout1" android:orientation="vertical" android:layout_height="wrap_content"  >
+	android:layout_height="fill_parent" android:orientation="vertical" android:scrollbars="vertical">
+	 <LinearLayout android:layout_width="match_parent" android:id="@+id/updateConfLinearLayout1" android:orientation="vertical" android:layout_height="wrap_content"  >
 		<TextView android:id="@+id/updateConfTitleTV" android:text="@string/updateConfTitleString" android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_gravity="top" android:gravity="center_vertical|center_horizontal" android:textSize="25px"></TextView>
     </LinearLayout>
-
+    <ScrollView android:layout_height="wrap_content" android:id="@+id/scrollView1" android:layout_width="match_parent">
+        <LinearLayout android:layout_width="match_parent" android:id="@+id/linearLayout1" android:layout_height="match_parent" android:orientation="vertical">
+        
     <LinearLayout android:layout_width="match_parent" android:id="@+id/updateConfLinearLayout1" android:orientation="vertical" android:layout_height="wrap_content"  >
 		<TextView android:id="@+id/updateConfTitleTV1" android:text="" android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_gravity="top" android:gravity="center_vertical|center_horizontal" android:textSize="25px"></TextView>
     </LinearLayout>
@@ -24,7 +25,7 @@
 
 	<TableLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/updateConftableLayout2">
         <TableRow android:id="@+id/updateConftableRow2" android:layout_width="wrap_content" android:layout_height="wrap_content">
-			<TextView android:id="@+id/updateConfeid6TV" android:text="@string/updateConfeid6String" android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_gravity="top" android:gravity="center_vertical|center_horizontal" android:textSize="25px" android:padding="7dip"></TextView>
+			<TextView android:id="@+id/updateConfeid6TV" android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_gravity="top" android:gravity="center_vertical|center_horizontal" android:textSize="25px" android:padding="7dip" android:text="@string/updateConfeid6String"></TextView>
 			<EditText android:id="@+id/updateConfeid6Text" android:text=""  android:layout_width="wrap_content" android:layout_height="wrap_content" android:padding="7dip"></EditText>
         </TableRow>
 	</TableLayout>   
@@ -65,10 +66,21 @@
     <LinearLayout android:layout_width="match_parent" android:id="@+id/updateConfLinearLayout4" android:orientation="vertical" android:layout_height="wrap_content"  >
 		<TextView android:id="@+id/updateConfTitleTV4" android:text="" android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_gravity="top" android:gravity="center_vertical|center_horizontal" android:textSize="25px"></TextView>
     </LinearLayout>
+    <TableLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/updateConftableDNSCheckLayout">
+        <TableRow android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/updateConftableDNSCheckRow">
+            <CheckBox android:text="Override DNS" android:layout_height="wrap_content" android:id="@+id/updateConfDNSCheck" android:layout_width="wrap_content" android:onClick="updateConfDNSClicked"></CheckBox>
+        </TableRow>
+    </TableLayout>
     <TableLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/updateConftableLayout6">
         <TableRow android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/updateConftableRow6">
-            <TextView android:layout_width="wrap_content" android:text="DNS Server Override" android:layout_height="wrap_content" android:id="@+id/updateConfDNSTV" android:gravity="center_vertical|center_horizontal" android:textSize="25px"></TextView>
-            <EditText android:layout_width="wrap_content" android:id="@+id/updateConfDNSText" android:text="" android:layout_height="wrap_content"></EditText>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:gravity="center_vertical|center_horizontal" android:textSize="25px" android:text="Primary DNS" android:id="@+id/updateConfDNS1TV"></TextView>
+            <EditText android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/updateConfDNS1Text" android:text="8.8.8.8" android:enabled="false"></EditText>
+        </TableRow>
+    </TableLayout>
+    <TableLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/updateConftableLayout7">
+        <TableRow android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/updateConftableRow7">
+            <TextView android:textSize="25px" android:layout_height="wrap_content" android:id="@+id/updateConfDNS2TV" android:text="Secondary DNS" android:layout_width="wrap_content"></TextView>
+            <EditText android:layout_height="wrap_content" android:text="8.8.4.4" android:id="@+id/updateConfDNS2Text" android:layout_width="wrap_content" android:enabled="false"></EditText>
         </TableRow>
     </TableLayout>
 
@@ -77,5 +89,9 @@
             <Button android:id="@+id/updateConfButton" android:text="@string/updateConfChgString" android:layout_height="wrap_content" android:layout_width="wrap_content" android:layout_weight="2.5" android:onClick="updateConfClicked"></Button>
         </TableRow>
 	</TableLayout>   
-	
+	</LinearLayout>
+    </ScrollView>
+		
+   
+
 </LinearLayout>
