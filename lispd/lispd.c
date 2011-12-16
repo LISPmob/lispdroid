@@ -84,6 +84,32 @@ void init(void) {
     lispd_config.use_dns_override               = FALSE;
 }
 
+void dump_fatal_error(void) {
+    FILE *fp, *logfp;
+    char logline[128];
+    fp = fopen(LISPD_INFOFILE, "w+");
+
+    if (!fp) {
+        log_msg(WARNING, "Could not write lispd info file to %s", LISPD_INFOFILE);
+        return;
+    }
+
+    logfp = fopen(LOGFILE_LOCATION, "r");
+
+    if (!logfp) {
+        log_msg(WARNING, "Could not open log file for reading.");
+    }
+    fprintf(fp, "There was an error starting the LISP daemon:\n");
+
+    while (fgets(logline, 128, logfp)) {
+
+        /* note that the newline is in the buffer */
+        fprintf(fp, "%s", logline);
+    }
+    fclose(logfp);
+    fclose(fp);
+}
+
 void dump_info_file(void) {
     FILE *fp;
     char addr_buf[128];
@@ -414,7 +440,12 @@ int main(int argc, char **argv)
     /*
      *	Now do the config file
      */
-    handle_lispd_config_file();
+    if (handle_lispd_config_file()) {
+        log_msg(FATAL, "Fatal error parsing config file.");
+        dump_fatal_error();
+        exit(EXIT_FAILURE);
+    }
+
     log_msg(INFO, "Read config file");
 
     if (!install_database_mappings()) {

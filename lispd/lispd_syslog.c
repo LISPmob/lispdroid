@@ -96,13 +96,11 @@ void rotate_logs (void) {
 
 void setup_log (void)
 {
-
     set_log_level(log_level);
-
 
     if (lispd_config.daemonize) {
         rotate_logs();
-        logfile = fopen(LOGFILE_LOCATION, "a");
+        logfile = freopen(LOGFILE_LOCATION, "w", stderr);
         if (!logfile) {
             fprintf(stderr, "Failed to open logfile errno: %d", errno);
             exit(-1);
