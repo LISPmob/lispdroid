@@ -16,7 +16,7 @@
     <string name="lispNotRunning">LISP is NOT running</string>
     
     <string name="updateConfTitleString">Current LISP Configuration</string>
-    <string name="updateConfString">Update LISP Configuration</string>
+    <string name="updateConfString">Edit LISP Configuration</string>
     <string name="updateConfeid4String">EID-IPv4: </string>
     <string name="updateConfeid6String">EID-IPv6: </string>
     <string name="updateConfChgString">Update Configuration</string> 

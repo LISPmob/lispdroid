@@ -1,37 +1,231 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	android:id="@+id/mainframe"
+	android:layout_height="fill_parent"
+	android:layout_width="fill_parent"
+	android:clipChildren="false">
+
+<!-- Top Level Linear Layout -->
+<LinearLayout
     android:layout_width="fill_parent"
-    android:layout_height="fill_parent" android:orientation="vertical">
-    <LinearLayout android:layout_width="match_parent" android:id="@+id/linearLayout1" android:orientation="vertical" android:layout_height="wrap_content">
-        <CheckBox android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/startStopCheckbox" android:text="@string/lispRunning"></CheckBox>
+    android:layout_height="fill_parent"
+    android:orientation="vertical"
+    android:background="#99BBE8">
+    
+    <!-- Top Bar -->
+    <LinearLayout
+        android:orientation="horizontal"
+    	android:layout_width="fill_parent"
+    	android:layout_height="wrap_content"
+    	android:background="@drawable/header_gradient_bg">
+
+        <ImageView
+            android:id="@+id/ciscoLogo"
+            android:src="@drawable/cisco_logo_small"
+            android:layout_width="wrap_content"
+    		android:layout_height="wrap_content"
+    		android:paddingTop="15dip"
+    		android:paddingLeft="8dip">
+        	</ImageView>
+        
+	    <!-- Start/Stop Lisp Process Checkbox -->
+	    <LinearLayout
+	        android:orientation="horizontal"
+	    	android:layout_width="fill_parent"
+	    	android:layout_height="wrap_content"
+	    	android:paddingRight="4dip"
+	    	android:gravity="right">
+	
+	        <TextView
+	            android:id="@+id/startStopCheckboxLabel"
+	            android:text="@string/lispRunning"
+	            android:layout_width="wrap_content"
+	        	android:layout_height="wrap_content"
+	        	android:textColor="#FFFFFF">
+	        	</TextView>
+	        
+	        <CheckBox
+	            android:id="@+id/startStopCheckbox"
+	            android:text=""
+	            android:paddingLeft="2dip"
+	        	android:layout_width="wrap_content"
+	        	android:layout_height="wrap_content">
+	        	</CheckBox>
+	        	
+	    </LinearLayout>
+	    
+	</LinearLayout>
+	
+    <!-- Separator -->
+    <LinearLayout
+		android:orientation="horizontal"
+    	android:layout_width="fill_parent"
+    	android:layout_height="3px"
+    	android:background="#15428B">
+    	</LinearLayout>
+	
+    <LinearLayout
+		android:orientation="horizontal"
+    	android:layout_width="fill_parent"
+    	android:layout_height="1px"
+    	android:background="#4E78B1">
+    	</LinearLayout>
+    	
+    <!-- Table of Menu Buttons -->
+    <LinearLayout
+        android:id="@+id/tableLayout1"
+        android:orientation="vertical"
+    	android:layout_height="wrap_content"
+    	android:layout_width="match_parent"
+    	android:paddingLeft="4dip"
+    	android:paddingRight="4dip"
+    	android:paddingTop="6dip"
+    	android:paddingBottom="6dip">
+    	
+        <LinearLayout
+        	android:id="@+id/tableRow1"
+        	android:orientation="horizontal"
+        	android:layout_width="wrap_content"
+        	android:layout_height="wrap_content"
+        	android:paddingTop="8dip"
+        	android:layout_gravity="center_horizontal">
+            	
+            <Button
+                android:id="@+id/showConfButton"
+                android:text="Show Config"
+                android:background="@drawable/generic_button"
+            	android:layout_width="140dip"
+            	android:layout_height="wrap_content"
+            	android:layout_marginRight="4dip">
+            	</Button>
+            
+            <Button
+                android:id="@+id/pingButton"
+                android:text="Ping"
+                android:background="@drawable/generic_button"
+            	android:layout_height="wrap_content"
+            	android:layout_width="140dip"
+            	android:layout_marginLeft="4dip">
+            	</Button>
+            	
+        </LinearLayout>
+
+        <LinearLayout
+        	android:id="@+id/tableRow2"
+        	android:orientation="horizontal"
+        	android:layout_height="wrap_content"
+        	android:layout_width="wrap_content"
+        	android:paddingTop="8dip"
+        	android:layout_gravity="center_horizontal">
+        	
+            <Button
+            	android:id="@+id/showCacheButton"
+            	android:text="@string/showMapCacheString"
+            	android:background="@drawable/generic_button"
+            	android:layout_height="wrap_content"
+            	android:layout_width="140dip"
+            	android:layout_marginRight="4dip">
+            	</Button>
+            	
+            <Button
+                android:id="@+id/showClearCacheButton"
+                android:text="@string/showClearCacheString"
+                android:background="@drawable/generic_button"
+            	android:layout_width="140dip"
+            	android:layout_height="wrap_content"
+            	android:layout_marginLeft="4dip">
+            	</Button>	
+            	
+        </LinearLayout>
+
+    	<LinearLayout
+    		android:id="@+id/tableRow3"
+    		android:orientation="horizontal"
+    		android:layout_height="wrap_content"
+    		android:layout_width="wrap_content"
+    		android:paddingTop="8dip"
+    		android:layout_gravity="center_horizontal">
+    		
+			<Button
+			    android:id="@+id/showDataCacheButton"
+			    android:text="@string/showDataCacheString"
+			    android:background="@drawable/generic_button"
+				android:layout_width="140dip"
+				android:layout_height="wrap_content"
+				android:layout_marginRight="4dip">
+				</Button>
+				
+            <Button
+                android:id="@+id/showLogButton"
+                android:text="@string/showLogString"
+                android:background="@drawable/generic_button"
+            	android:layout_width="140dip"
+            	android:layout_height="wrap_content"
+            	android:layout_marginLeft="4dip">
+            	</Button>
+            		    		
+    	</LinearLayout>
+    	
     </LinearLayout>
-    <TableLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/tableLayout2">
-        <TableRow android:id="@+id/tableRow2" android:layout_width="wrap_content" android:layout_height="wrap_content">
-            <Button android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/showCacheButton" android:text="@string/showMapCacheString" android:layout_weight="1"></Button>
-            <Button android:layout_height="wrap_content" android:layout_width="wrap_content" android:id="@+id/pingButton" android:text="Ping" android:layout_weight="2.5"></Button>
-        </TableRow>
-    </TableLayout>
-    <TableLayout android:layout_height="wrap_content" android:id="@+id/tableLayout1" android:layout_width="match_parent">
-        <TableRow android:id="@+id/tableRow1" android:layout_height="wrap_content" android:layout_width="match_parent">
-            <Button android:layout_width="match_parent" android:text="Show Configuration" android:layout_height="wrap_content" android:layout_weight="1" android:id="@+id/showConfButton"></Button>
-            <Button android:layout_width="match_parent" android:text="@string/showLogString" android:id="@+id/showLogButton" android:layout_height="wrap_content" android:layout_gravity="right" android:layout_weight="1"></Button>
-        </TableRow>
-    </TableLayout>
-    <TableLayout android:layout_height="wrap_content" android:id="@+id/tableLayout3" android:layout_width="match_parent">
-    	<TableRow android:id="@+id/tableRow3" android:layout_height="wrap_content" android:layout_width="match_parent">
-			<Button android:layout_width="match_parent" android:text="@string/showDataCacheString" android:layout_height="wrap_content" android:layout_weight="1" android:id="@+id/showDataCacheButton"></Button>
-            <Button android:layout_width="match_parent" android:text="@string/showClearCacheString" android:id="@+id/showClearCacheButton" android:layout_height="wrap_content" android:layout_gravity="right" android:layout_weight="1"></Button>						    		
-    	</TableRow>
-    </TableLayout>
-    <TableLayout android:layout_height="wrap_content" android:id="@+id/tableLayout4" android:layout_width="match_parent">
-    	<TableRow android:id="@+id/tableRow6" android:layout_height="wrap_content" android:layout_width="match_parent">
-			<Button android:id="@+id/updateConfButton" android:layout_width="match_parent" android:text="@string/updateConfString" android:layout_height="wrap_content" android:layout_weight="1"></Button>
-    	</TableRow>
-    </TableLayout>
-    <LinearLayout android:id="@+id/linearLayout2" android:baselineAligned="false" android:orientation="vertical" android:layout_width="wrap_content" android:layout_height="wrap_content">
-    </LinearLayout>
-    <ScrollView android:layout_height="wrap_content" android:id="@+id/scrollView2" android:layout_width="match_parent">
-        <TextView android:id="@+id/infoView" android:layout_width="match_parent" android:layout_height="match_parent" android:text="TextView" android:typeface="monospace" android:textSize="11sp" android:longClickable="true"></TextView>
+
+    <!-- Separator -->
+    <LinearLayout
+		android:orientation="horizontal"
+    	android:layout_width="fill_parent"
+    	android:layout_height="1px"
+    	android:background="#4E78B1"
+    	android:layout_marginTop="8dip">
+    	</LinearLayout>
+    
+	<LinearLayout
+		android:orientation="horizontal"
+    	android:layout_width="fill_parent"
+    	android:layout_height="3px"
+    	android:background="#15428B">
+    	</LinearLayout>
+
+    <!-- Info scroll view -->
+    <ScrollView
+        android:id="@+id/scrollView1"
+    	android:layout_height="wrap_content"
+    	android:layout_width="match_parent"
+    	android:background="@drawable/info_text_gradient_bg">
+    	
+        <LinearLayout
+    		android:id="@+id/scrollViewLinearLayout"
+    		android:orientation="vertical"
+    		android:layout_height="wrap_content"
+    		android:layout_width="match_parent"
+    		android:paddingTop="6dip"
+    		android:paddingLeft="6dip"
+    		android:paddingRight="6dip">
+	        
+			<Button
+				android:id="@+id/updateConfButton"
+				android:text="@string/updateConfString"
+				android:background="@drawable/generic_button"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content">
+				</Button>
+            
+	        <TextView
+	        	android:id="@+id/infoView"
+	        	android:text="TextView"
+	        	android:layout_width="match_parent"
+	        	android:layout_height="match_parent"
+	        	android:paddingLeft="6dip"
+	        	android:layout_marginTop="8dip"
+	        	android:typeface="monospace"
+	        	android:textSize="11sp"
+	        	android:textColor="#15428B"
+	        	android:longClickable="true">
+	        	</TextView>
+	        
+		</LinearLayout>
+	        
     </ScrollView>
+    
 </LinearLayout>
+
+</FrameLayout>
