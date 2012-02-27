@@ -201,12 +201,22 @@ public class lispMonitor extends Activity implements OnClickListener {
     	final CheckBox lispCheckBox = (CheckBox) findViewById(R.id.startStopCheckbox);
     	final TextView lispCheckBoxLabel = (TextView) findViewById(R.id.startStopCheckboxLabel);
     	final TextView statusView = (TextView) findViewById(R.id.infoView);
+    	boolean lispdRunning = false;
+    	boolean lispmodRunning = false;
     	
     	String lsmodOutput = runTask("/system/bin/lsmod", "", false);
     	String psOutput = runTask("/system/bin/ps", "", false);
-    	if (lsmodOutput.contains("lisp") && psOutput.contains("lispd")) {
+    	
+    	lispdRunning = psOutput.contains("lispd");
+    	lispmodRunning = lsmodOutput.contains("lisp");
+    	
+    	if (lispdRunning && lispmodRunning) {
     		lispCheckBoxLabel.setText(R.string.lispRunning);
     		lispCheckBox.setChecked(true);
+    		updateInfoView();
+    	} else if (lispmodRunning) {
+    		lispCheckBox.setText("lispd has crashed, click to restart.");
+    		lispCheckBox.setChecked(false);
     		updateInfoView();
     	} else {
     		lispCheckBoxLabel.setText(R.string.lispNotRunning);

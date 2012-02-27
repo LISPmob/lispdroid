@@ -38,11 +38,10 @@
 	    	android:gravity="right">
 	
 	        <TextView
-	            android:id="@+id/startStopCheckboxLabel"
 	            android:text="@string/lispRunning"
 	            android:layout_width="wrap_content"
 	        	android:layout_height="wrap_content"
-	        	android:textColor="#FFFFFF">
+	        	android:textColor="#FFFFFF" android:id="@+id/startStopCheckboxLabel">
 	        	</TextView>
 	        
 	        <CheckBox
