@@ -49,7 +49,8 @@ typedef enum {
   LispDaemonRegister = 13,
   LispTrafficMonStart = 14,
   LispSetUDPPorts = 15,
-  LispMaxType = LispSetUDPPorts
+  LispSetInstanceID = 16,
+  LispMaxType = LispSetInstanceID
 } lisp_msgtype_e;
 
 /* 
@@ -89,6 +90,13 @@ typedef struct _lisp_lookup_msg {
   int         all_entries;
 } lisp_lookup_msg_t;
 
+/*
+ * Set/unset the instance ID
+ */
+typedef struct {
+    int enable;
+    unsigned int id;
+} lisp_set_instance_msg_t;
 
 /*
  * RLOC/ifindex mapping. if_index

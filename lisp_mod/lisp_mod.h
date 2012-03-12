@@ -36,6 +36,8 @@ typedef struct {
   ushort my_rloc_af;
   ushort udp_encap_port;
   ushort udp_control_port;
+  unsigned int instance_id;
+  int   use_instance_id;
   int   daemonPID; /* Process ID for lispd */
   // RLOC to if_index table, used by lisp connection manager
   rloc_map_entry_t *if_to_rloc_hash_table[1 << IFINDEX_HASH_BITS];

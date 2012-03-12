@@ -109,7 +109,8 @@ unsigned int lisp_input(unsigned int hooknum, struct sk_buff *packet_buf,
   struct udphdr *udh;
   struct lisphdr *lisp_hdr;
   char   first_byte;
-  int source_locator;
+  int    source_locator;
+  int    pkt_instance;
 
   /*
    * Get the IP header
@@ -156,54 +157,64 @@ unsigned int lisp_input(unsigned int hooknum, struct sk_buff *packet_buf,
 
     // Detect non-encapsulated lisp control messages
     if (ntohs(udh->dest) == globals.udp_encap_port &&
-        ntohs(udh->source) != LISP_CONTROL_PORT &&
-        (first_byte != echo_signature)) {
+            ntohs(udh->source) != LISP_CONTROL_PORT &&
+            (first_byte != echo_signature)) {
 
-      // LISP header
-      lisp_hdr = (struct lisphdr *)skb_pull(packet_buf, sizeof(struct udphdr));
-      skb_reset_transport_header(packet_buf);
+        // LISP header
+        lisp_hdr = (struct lisphdr *)skb_pull(packet_buf, sizeof(struct udphdr));
+        skb_reset_transport_header(packet_buf);
 
 #ifdef DEBUG_PACKETS
-      printk(KERN_INFO "   LISP packet received: dest %d, len: %d\n", ntohs(udh->dest),
-	     ntohs(udh->len));
-      printk(KERN_INFO "       rflags: %d, e: %d, l: %d, n: %d, lsb: 0x%x",
-             lisp_hdr->rflags, lisp_hdr->echo_nonce, lisp_hdr->lsb,
-             lisp_hdr->nonce_present, lisp_hdr->lsb_bits);
+        printk(KERN_INFO "   LISP packet received: dest %d, len: %d\n", ntohs(udh->dest),
+               ntohs(udh->len));
+        printk(KERN_INFO "       rflags: %d, e: %d, l: %d, n: %d, i: %d, id/lsb: 0x%x",
+               lisp_hdr->rflags, lisp_hdr->echo_nonce, lisp_hdr->lsb,
+               lisp_hdr->nonce_present, lisp_hdr->instance_id, ntohl(lisp_hdr->lsb_bits));
 #endif
 
-      // Decapsulate
-      skb_pull(packet_buf, sizeof(struct lisphdr));
-      skb_reset_transport_header(packet_buf);
-      skb_reset_network_header(packet_buf);
-      iph = ip_hdr(packet_buf);
+        if (globals.use_instance_id) {
+            pkt_instance = ntohl(lisp_hdr->lsb_bits);
+            pkt_instance = pkt_instance >> 8;
 
-      if (iph->version == 4) {
+            if (pkt_instance != globals.instance_id) {
+                printk(KERN_INFO "  Packet instance ID does not match configured value, dropping.");
+                return(NF_DROP);
+            }
+        }
+
+        // Decapsulate
+        skb_pull(packet_buf, sizeof(struct lisphdr));
+        skb_reset_transport_header(packet_buf);
+        skb_reset_network_header(packet_buf);
+        iph = ip_hdr(packet_buf);
+
+        if (iph->version == 4) {
 #ifdef DEBUG_PACKETS
-      printk(KERN_INFO "   Inner packet src:%pI4 dst:%pI4, type: %d\n", &(iph->saddr),
-             &(iph->daddr), iph->protocol);
+            printk(KERN_INFO "   Inner packet src:%pI4 dst:%pI4, type: %d\n", &(iph->saddr),
+                   &(iph->daddr), iph->protocol);
 #endif
 
-      // Check the LSB's.
-      check_locator_bits(lisp_hdr, iph, source_locator);
+            // Check the LSB's.
+            check_locator_bits(lisp_hdr, iph, source_locator);
+            return NF_ACCEPT;
 
-      return NF_ACCEPT;
-      } else if (iph->version == 6) {
-          ip6 = ipv6_hdr(packet_buf);
-          printk(KERN_INFO "   Inner packet src:%pI6 dst:%pI6, nexthdr: 0x%x\n",
-                 ip6->saddr.s6_addr, ip6->daddr.s6_addr, ip6->nexthdr);
+        } else if (iph->version == 6) {
+            ip6 = ipv6_hdr(packet_buf);
+            printk(KERN_INFO "   Inner packet src:%pI6 dst:%pI6, nexthdr: 0x%x\n",
+                   ip6->saddr.s6_addr, ip6->daddr.s6_addr, ip6->nexthdr);
 
-          IPCB(packet_buf)->flags = 0;
-          packet_buf->protocol = htons(ETH_P_IPV6);
-          packet_buf->pkt_type = PACKET_HOST;
+            IPCB(packet_buf)->flags = 0;
+            packet_buf->protocol = htons(ETH_P_IPV6);
+            packet_buf->pkt_type = PACKET_HOST;
 
-          packet_buf->dev = input_dev;
-          nf_reset(packet_buf);
-          netif_rx(packet_buf);
+            packet_buf->dev = input_dev;
+            nf_reset(packet_buf);
+            netif_rx(packet_buf);
 
-          return NF_STOLEN;
-      } else {
-          return NF_ACCEPT; // Don't know what it is, let ip deal with it.
-      }
+            return NF_STOLEN;
+        } else {
+            return NF_ACCEPT; // Don't know what it is, let ip deal with it.
+        }
     }
 
 #ifdef DEBUG_PACKETS

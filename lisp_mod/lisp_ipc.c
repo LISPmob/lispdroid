@@ -45,7 +45,8 @@ const struct ipc_handler_struct ipc_table[] = {
     { "Delete Database Entry", handle_map_db_delete },
     { "Register Daemon", handle_daemon_register },
     { "Start Traffic Monitor", handle_traffic_mon_start },
-    { "Set UDP Ports", handle_set_udp_ports }
+    { "Set UDP Ports", handle_set_udp_ports },
+    { "Set Instance ID", handle_set_instance_id }
 };
 
 /*
@@ -698,7 +699,6 @@ void handle_map_db_delete(lisp_cmd_t *cmd, int length)
   return;
 }
 
-
 /*
  * handle_map_db_lookup()
  *
@@ -940,6 +940,18 @@ void handle_set_udp_ports(lisp_cmd_t *cmd, int pid) {
            globals.udp_control_port, globals.udp_encap_port);
 }
 
+/*
+ * handle_set_instance_id
+ *
+ * Set or unset the instance ID for this device.
+ */
+void handle_set_instance_id(lisp_cmd_t *cmd, int pid) {
+    lisp_set_instance_msg_t *msg = (lisp_set_instance_msg_t *)cmd->val;
+
+    globals.use_instance_id = msg->enable;
+    globals.instance_id = msg->id;
+    printk(KERN_INFO "Set Instance-ID to %d, %s.", globals.instance_id, globals.use_instance_id ? "enabled" : "disabled");
+}
 
 /*
  * handle_daemon_register()
@@ -996,6 +1008,7 @@ void lisp_netlink_input(struct sk_buff *skb)
       printk(KERN_INFO "  Got %s message.\n", ipc_table[cmd->type].description);
   } else {
       printk(KERN_INFO "  Message type out of range: %d\n", cmd->type);
+      return;
   }
 
   /*

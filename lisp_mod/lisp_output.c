@@ -171,15 +171,24 @@ void lisp_encap4(struct sk_buff *skb, int locator_addr,
   // Single LSB for now, and set it to ON
   lisph->lsb = 1;
   lisph->lsb_bits = htonl(0x1);
+
+  /*
+   * Using instance ID? Or it in.
+   */
+  if (globals.use_instance_id) {
+      lisph->instance_id = 1;
+      lisph->lsb_bits |= htonl(globals.instance_id << 8);
+  }
+
   lisph->nonce_present = 1;
   lisph->nonce[0] = net_random() & 0xFF;
   lisph->nonce[1] = net_random() & 0xFF;
   lisph->nonce[2] = net_random() & 0xFF;
 
 #ifdef DEBUG_PACKETS
-  printk(KERN_INFO "          rflags: %d, e: %d, l: %d, n: %d, lsb: 0x%x",
+  printk(KERN_INFO "          rflags: %d, e: %d, l: %d, n: %d, i: %d, id/lsb: 0x%x",
              lisph->rflags, lisph->echo_nonce, lisph->lsb,
-             lisph->nonce_present, lisph->lsb_bits);
+             lisph->nonce_present, lisph->instance_id, ntohl(lisph->lsb_bits));
 #endif
 
   /* 
