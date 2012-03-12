@@ -35,7 +35,9 @@ public class updateConfActivity extends Activity {
 	public String MSKey = "";
 	public String DNS1 = "";
 	public String DNS2 = "";
+	public String InstanceID = "";
 	public boolean overrideDNS = false; 
+	public boolean useInstanceID = false;
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -107,8 +109,17 @@ public class updateConfActivity extends Activity {
 					overrideDNS = true;
 					CheckBox c = (CheckBox)findViewById(R.id.updateConfDNSCheck);
 					c.setChecked(true);
+				} else if (line.contains("instance-id") && !line.contains("#")) {
+					String[] tmp = line.split("=");
+					String[] tmp2 = tmp[1].split(" ");
+					InstanceID = tmp2[1];
+					EditText e = (EditText)findViewById(R.id.updateConfInstanceID);
+					e.setText(InstanceID);
+					e.setEnabled(true);
+					useInstanceID = true;
+					CheckBox c = (CheckBox)findViewById(R.id.updateConfUseInstance);
+					c.setChecked(true);
 				} else if (line.contains("map-server") && !line.contains("#")) {
-				
 					boolean flg1=false, flg2=false;
 					do {
 						String line_1 = br.readLine();
@@ -208,7 +219,7 @@ public class updateConfActivity extends Activity {
 	public void displayMessage(String message, boolean cancelAble, final Runnable task) 
 	{		
 		AlertDialog.Builder builder = new AlertDialog.Builder(this);
-		builder.setTitle("Attension");
+		builder.setTitle("Attention");
 		builder.setMessage(message);
 		builder.setCancelable(cancelAble);
 		builder.setPositiveButton("OK", new DialogInterface.OnClickListener() { 
@@ -335,6 +346,38 @@ public class updateConfActivity extends Activity {
 		return str;
 	}
 	
+	public String replace_if_required_instance_id(String str)
+	{
+		Pattern IDLinePattern = Pattern.compile("^(\\s*)(\\S*)(\\s*)instance-id(\\s*)=(\\s*)(\\d{1,5})(\\s*)");
+		Matcher IDLineMatcher = IDLinePattern.matcher(str);
+		
+		if (IDLineMatcher.matches()) {
+			String[] tmp_1 = str.split("=");
+			Pattern IDValPattern = Pattern.compile("(\\s*)(\\d{1,5})(\\s*)");
+			Matcher IDValMatcher = IDValPattern.matcher(tmp_1[1]);
+			if (IDValMatcher.matches()) {
+				StringBuilder op = new StringBuilder();
+				op.append(IDValMatcher.group(2));
+				if ( op.toString().equals(InstanceID) ) { 
+					EditText e = (EditText) findViewById(R.id.updateConfInstanceID);
+					
+					if (!useInstanceID) {
+						str = "";
+						//displayMessage("Clearing instance ID config", false, null);
+					} else {
+						StringBuilder opStr = new StringBuilder();
+						opStr.append(tmp_1[0]); opStr.append("= ");
+						opStr.append(e.getText().toString());
+						str = opStr.toString();
+						//displayMessage("The string is :"+str+":", false, null);
+					}
+				}
+			}
+		}
+		
+		return str;
+	}
+	
 	public String replace_if_required_eidipv4_dbmapping(String str)
 	{
 		Pattern eidipv4PrefPtrn = Pattern.compile("^(\\s*)eid-prefix(\\s*)=(\\s*)(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})/(\\d{1,2})(\\s*)");
@@ -445,8 +488,9 @@ public class updateConfActivity extends Activity {
 		StringBuilder out = new StringBuilder();
 		String[] tmp = str.split("\n");
 		int i=0;
-		boolean DNSwasfound = false;
-			
+		boolean DNSWasfound = false;
+		boolean instanceIDWasFound = false;
+		
 		while (i < tmp.length) {
 			
 			tmp[i] = replace_if_required_eidipv4(tmp[i]);
@@ -455,21 +499,27 @@ public class updateConfActivity extends Activity {
 			tmp[i] = replace_if_required_ms(tmp[i]);
 			tmp[i] = replace_if_required_primary_dns(tmp[i]);
 			tmp[i] = replace_if_required_secondary_dns(tmp[i]);
+			tmp[i] = replace_if_required_instance_id(tmp[i]);
 
 			if (tmp[i].contains("override-dns-primary")) {
-				DNSwasfound = true;
+				DNSWasfound = true;
 			}
+			
+			if (tmp[i].contains("instance-id")) {
+				instanceIDWasFound = true;
+			}
+					
 			out.append(tmp[i]);
 			out.append("\n");
 			i++;
 		}
 		
-		EditText DNSe = (EditText)findViewById(R.id.updateConfDNS1Text);
 		
 		// If DNS went from unconfigured to configured, add the line.
-		if (!DNSwasfound && overrideDNS) {
-	
-			int index = out.toString().indexOf("eid-interface");
+		if (!DNSWasfound && overrideDNS) {
+
+			EditText DNSe = (EditText)findViewById(R.id.updateConfDNS1Text);
+			int index = out.toString().indexOf("eid-interface"); // place after eid-interace config
 			
 			StringBuilder DNSString = new StringBuilder();
 			DNSString.append("override-dns-primary = ");
@@ -482,6 +532,21 @@ public class updateConfActivity extends Activity {
 			DNSString.append("\n");
 			
 			out.insert(index, DNSString.toString());
+		}
+		
+		
+		// Same for instance ID
+		if (!instanceIDWasFound && useInstanceID) {
+			
+			EditText IDe = (EditText)findViewById(R.id.updateConfInstanceID);
+			int index = out.toString().indexOf("map-resolver"); // place after map-resolver config
+			
+			StringBuilder IDString = new StringBuilder();
+			IDString.append("instance-id = ");
+			IDString.append(IDe.getText().toString());
+			IDString.append("\n");
+			
+			out.insert(index, IDString.toString());
 		}
 		
 		EditText e = (EditText) findViewById(R.id.updateConfeid4Text);
@@ -555,6 +620,20 @@ public class updateConfActivity extends Activity {
 			e.setEnabled(false);
 			
 			e = (EditText)findViewById(R.id.updateConfDNS2Text);
+			e.setEnabled(false);
+		}
+	}
+	
+	public void updateConfInstanceIDClicked(View v)
+	{
+		CheckBox c = (CheckBox)v;
+		if (c.isChecked()) {
+			useInstanceID = true;
+			EditText e = (EditText)findViewById(R.id.updateConfInstanceID);
+			e.setEnabled(true);
+		} else {
+			useInstanceID = false;
+			EditText e = (EditText)findViewById(R.id.updateConfInstanceID);
 			e.setEnabled(false);
 		}
 	}

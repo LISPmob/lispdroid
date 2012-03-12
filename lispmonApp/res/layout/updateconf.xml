@@ -73,16 +73,23 @@
     </TableLayout>
     <TableLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/updateConftableLayout6">
         <TableRow android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/updateConftableRow6">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:gravity="center_vertical|center_horizontal" android:textSize="25px" android:text="Primary DNS" android:id="@+id/updateConfDNS1TV"></TextView>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:gravity="center_vertical|center_horizontal" android:textSize="25px" android:id="@+id/updateConfDNS1TV" android:text="Primary DNS:"></TextView>
             <EditText android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/updateConfDNS1Text" android:text="8.8.8.8" android:enabled="false"></EditText>
         </TableRow>
     </TableLayout>
     <TableLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/updateConftableLayout7">
         <TableRow android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/updateConftableRow7">
-            <TextView android:textSize="25px" android:layout_height="wrap_content" android:id="@+id/updateConfDNS2TV" android:text="Secondary DNS" android:layout_width="wrap_content"></TextView>
+            <TextView android:textSize="25px" android:layout_height="wrap_content" android:id="@+id/updateConfDNS2TV" android:layout_width="wrap_content" android:text="Secondary DNS:"></TextView>
             <EditText android:layout_height="wrap_content" android:text="8.8.4.4" android:id="@+id/updateConfDNS2Text" android:layout_width="wrap_content" android:enabled="false"></EditText>
         </TableRow>
     </TableLayout>
+    <LinearLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/updateConfTableInstanceLayout">
+        <CheckBox android:text="Use Instance-ID" android:id="@+id/updateConfUseInstance" android:layout_width="wrap_content" android:layout_height="wrap_content" android:onClick="updateConfInstanceIDClicked"></CheckBox>
+    </LinearLayout>
+    <LinearLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/updateContTableInstanceIDLayout">
+        <TextView android:id="@+id/textView1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="25px" android:text="Instance:"></TextView>
+        <EditText android:width="80px" android:enabled="false" android:id="@+id/updateConfInstanceID" android:text="0" android:layout_width="wrap_content" android:layout_height="wrap_content"></EditText>
+    </LinearLayout>
 
 	<TableLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/updateConftableLayout2">
         <TableRow android:id="@+id/updateConftableRow2" android:layout_width="wrap_content" android:layout_height="wrap_content">

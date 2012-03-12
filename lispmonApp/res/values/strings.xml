@@ -21,8 +21,8 @@
     <string name="updateConfeid6String">EID-IPv6: </string>
     <string name="updateConfChgString">Update Configuration</string> 
     <string name="updateConfUpdString">Save Changes</string> 
-    <string name="updateConfMRString">Map-Resolver</string> 
-    <string name="updateConfMSString">Map-Server</string>
-    <string name="updateConfMSKeyString">Map-Server Key</string>
+    <string name="updateConfMRString">Map-Resolver:</string> 
+    <string name="updateConfMSString">Map-Server:</string>
+    <string name="updateConfMSKeyString">Map-Server Key:</string>
     
 </resources>

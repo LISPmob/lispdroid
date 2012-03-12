@@ -10,12 +10,14 @@ import java.io.InputStreamReader;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import android.R.color;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Color;
 import android.widget.CheckBox;
 import android.widget.Button;
 import android.widget.TextView;
@@ -212,14 +214,17 @@ public class lispMonitor extends Activity implements OnClickListener {
     	
     	if (lispdRunning && lispmodRunning) {
     		lispCheckBoxLabel.setText(R.string.lispRunning);
+    		lispCheckBoxLabel.setTextColor(Color.WHITE);
     		lispCheckBox.setChecked(true);
     		updateInfoView();
     	} else if (lispmodRunning) {
-    		lispCheckBox.setText("lispd has crashed, click to restart.");
+    		lispCheckBoxLabel.setText("lispd has crashed, click to restart.");
+    		lispCheckBoxLabel.setTextColor(Color.RED);
     		lispCheckBox.setChecked(false);
     		updateInfoView();
     	} else {
     		lispCheckBoxLabel.setText(R.string.lispNotRunning);
+    		lispCheckBoxLabel.setTextColor(Color.WHITE);
     		lispCheckBox.setChecked(false);
     		statusView.setText("");
     	}
