@@ -149,6 +149,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
     lispd_pkt_lcaf_t                   *lcaf;
     lispd_pkt_lcaf_addr_t              *lcaf_addr;
     lispd_pkt_nat_lcaf_t               *nat_lcaf;
+    lispd_pkt_instance_lcaf_t          *instance_lcaf;
     lispd_pkt_mapping_record_locator_t *loc_ptr;
     lispd_if_t                          *intf;
     char                                addr_str[128];
@@ -185,7 +186,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
 							 * locators
                                                          */
     /*
-     * Adjust size if using LCAF addresses
+     * Adjust size if using NAT-LCAF addresses
      */
     if (lispd_config.use_nat_lcaf) {
 
@@ -195,14 +196,18 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
                     (sizeof(lispd_pkt_lcaf_t) - sizeof(uint16_t))));
     }
 
+    /*
+     * Adjust size if using instance ID LCAF addresses
+     */
+    if (lispd_config.use_instance_id) {
+        mrp_len += sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_instance_lcaf_t);
+    }
+
     if ((mrp = (lispd_pkt_map_register_t *)malloc(mrp_len)) == NULL) {
         log_msg(INFO, "malloc (map-register packet): %s", strerror(errno));
 	return(0);
     }
    
-    /*
-     *	make sure this is clean
-     */
     memset(mrp, 0, mrp_len);
     locator_chain->mrp_len = mrp_len;
 
@@ -231,21 +236,50 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
     mr->action            = 0;
     mr->version_hi        = 0;
     mr->version_low       = 0;
-    mr->eid_prefix_afi    = htons(eid_afi);
 
-    /*
-     * skip over the mapping record and put the eid prefix immediately
-     * following...
-     */
-    if ((len = copy_addr((void *)
-			 CO(mr,sizeof(lispd_pkt_mapping_record_t)),
-			 &(locator_chain->eid_prefix),
-                         locator_chain->eid_prefix.afi,
-			 0)) == 0) {
-        log_msg(INFO, "eid prefix (%s) has an unknown afi (%d)",
-	       locator_chain->eid_name,
-               locator_chain->eid_prefix.afi);
-	return(0);
+    if (lispd_config.use_instance_id) {
+        log_msg(INFO, "   adding instance ID: %d to EID mapping record",
+                lispd_config.instance_id);
+        lcaf = (lispd_pkt_lcaf_t *)((char *)mr + offsetof(lispd_pkt_mapping_record_t, eid_prefix_afi));
+        lcaf->afi = htons(LISP_AFI_LCAF);
+        lcaf->type = LISP_LCAF_INSTANCE;
+
+        // Instance ID + EID addr len + afi field
+        lcaf->length = htons(4 + afi_len + sizeof(uint16_t));
+        instance_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
+        instance_lcaf->instance = htonl(lispd_config.instance_id);
+        lcaf_addr = (lispd_pkt_lcaf_addr_t *)instance_lcaf->address;
+        if ((len = copy_addr((void *)lcaf_addr->address,
+                             &(locator_chain->eid_prefix),
+                             locator_chain->eid_prefix.afi,
+                             0)) == 0) {
+            log_msg(INFO, "eid prefix (%s) has an unknown afi (%d)",
+                    locator_chain->eid_name,
+                    locator_chain->eid_prefix.afi);
+            return(0);
+        }
+        lcaf_addr->afi = htons(eid_afi);
+
+        // Include the LCAF sizes in len, so the following code offsets correctly
+        len += sizeof(unsigned int) + sizeof(lispd_pkt_lcaf_t);
+    } else {
+
+        mr->eid_prefix_afi    = htons(eid_afi);
+
+        /*
+         * skip over the fixed mapping record and put the eid prefix immediately
+         * following...
+         */
+        if ((len = copy_addr((void *)
+                             CO(mr,sizeof(lispd_pkt_mapping_record_t)),
+                             &(locator_chain->eid_prefix),
+                             locator_chain->eid_prefix.afi,
+                             0)) == 0) {
+            log_msg(INFO, "eid prefix (%s) has an unknown afi (%d)",
+                    locator_chain->eid_name,
+                    locator_chain->eid_prefix.afi);
+            return(0);
+        }
     }
 	
     /*
@@ -302,7 +336,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
          * along with the locator address.
          */
         if (lispd_config.use_nat_lcaf) {
-            lcaf = ((char *)loc_ptr + offsetof(lispd_pkt_mapping_record_locator_t, locator_afi));
+            lcaf = (lispd_pkt_lcaf_t *)((char *)loc_ptr + offsetof(lispd_pkt_mapping_record_locator_t, locator_afi));
 
             lcaf->afi  = htons(LISP_AFI_LCAF);
             lcaf->type = LISP_LCAF_NAT;
@@ -333,9 +367,9 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
             /*
              * NULL the private and NTR RLOC fields.
              */
-            lcaf_addr = CO(lcaf_addr, sizeof(uint16_t) + len);
+            lcaf_addr = (lispd_pkt_lcaf_addr_t *)CO(lcaf_addr, sizeof(uint16_t) + len);
             lcaf_addr->afi = 0;
-            lcaf_addr = CO(lcaf_addr, sizeof(uint16_t));
+            lcaf_addr = (lispd_pkt_lcaf_addr_t *)CO(lcaf_addr, sizeof(uint16_t));
             lcaf_addr->afi = 0;
             len += 2 * sizeof(uint16_t);
 

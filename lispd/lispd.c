@@ -82,6 +82,8 @@ void init(void) {
     lispd_config.rloc_probe_interval            = DEFAULT_PROBE_INTERVAL;
     lispd_config.rloc_probe_retries             = DEFAULT_PROBE_RETRIES;
     lispd_config.use_dns_override               = FALSE;
+    lispd_config.instance_id                    = 0;
+    lispd_config.use_instance_id                = FALSE;
 }
 
 void dump_fatal_error(void) {

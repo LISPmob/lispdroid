@@ -87,6 +87,7 @@ typedef struct {
    uchar     data[0];
 } PACKED lispd_pkt_echo_t;
 
+#define LISP_LCAF_INSTANCE 2
 #define LISP_LCAF_NAT 7
 
 typedef struct {
@@ -115,6 +116,23 @@ typedef struct {
     uint16_t  length;
     uint8_t   address[0];
 } PACKED lispd_pkt_lcaf_t;
+
+/*
+ * LISP Instance ID LCAF format
+ *
+ *    0                   1                   2                   3
+ *    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+ *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *   |                         Instance ID                           |
+ *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *   |              AFI = x          |         Address  ...          |
+ *   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *
+ */
+typedef struct {
+    uint32_t instance;
+    uint8_t  address[0];
+} PACKED lispd_pkt_instance_lcaf_t;
 
 /*
  * LISP NAT Travseral LCAF format
@@ -263,7 +281,7 @@ typedef struct lispd_pkt_mapping_record_locator_t_ {
  *   r   |                          EID-prefix                           |
  *   d   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+a
  *   |  /|    Priority   |    Weight     |  M Priority   |   M Weight    |
- *   | L +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *   | L +-+-+-+-+-+-+-+-+-+-+ -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *   | o |        Unused Flags     |L|p|R|           Loc-AFI             |
  *   | c +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *   |  \|                             Locator                           |

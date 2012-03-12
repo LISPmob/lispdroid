@@ -89,25 +89,26 @@ int process_map_reply_locator_records(lisp_eid_map_msg_t *msg,
  * Copies the information from the map reply packet to
  * EID portion of the lisp_eid_map_msg_t.
  */
-int build_cache_msg_eid_portion(lisp_eid_map_msg_t *msg, lispd_pkt_map_reply_eid_prefix_record_t *eid_rec)
+int build_cache_msg_eid_portion(lisp_eid_map_msg_t *msg, lispd_pkt_map_reply_eid_prefix_record_t *eid_rec,
+                                uint16_t eid_afi, uchar *eid_prefix)
 {
     memset(msg, 0, sizeof(lisp_eid_map_msg_t));
 
     msg->sampling_interval = lispd_config.rloc_probe_interval;
 
-    if (ntohs(eid_rec->eid_afi) == LISP_AFI_IP) {
+    if (eid_afi == LISP_AFI_IP) {
         memcpy(&msg->eid_prefix.address.ip.s_addr,
-               eid_rec->eid_prefix, sizeof(struct in_addr));
+               eid_prefix, sizeof(struct in_addr));
     }
-    else if (ntohs(eid_rec->eid_afi) == LISP_AFI_IPV6) {
+    else if (eid_afi == LISP_AFI_IPV6) {
         memcpy(&msg->eid_prefix.address.ipv6.s6_addr,
-               eid_rec->eid_prefix, sizeof(struct in6_addr));
+               eid_prefix, sizeof(struct in6_addr));
     } else {
-        log_msg(INFO, "  Unknown EID AF: %d", eid_rec->eid_afi);
+        log_msg(INFO, "  Unknown EID AF: %d", eid_afi);
         return(FALSE);
     } // All others unknown
 
-    msg->eid_prefix.afi = lisp2inetafi(ntohs(eid_rec->eid_afi));
+    msg->eid_prefix.afi = lisp2inetafi(eid_afi);
     msg->eid_prefix_length = eid_rec->eid_masklen;
     msg->count = eid_rec->loc_count;
     msg->ttl = ntohl(eid_rec->ttl);
@@ -174,6 +175,10 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
     int total_addr_offset = 0;
     lispd_pkt_map_reply_eid_prefix_record_t *curr_eid = records;
     lisp_eid_map_msg_t *cache_msg;
+    lispd_pkt_lcaf_t *lcaf;
+    lispd_pkt_lcaf_addr_t *lcaf_addr;
+    lispd_pkt_instance_lcaf_t *instance_lcaf;
+    uchar *curr_eid_addr_ptr;
     char addr_buf[128];
     int i;
 
@@ -184,9 +189,50 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
                    total_addr_offset); // XXX what about locator sizes? Not sure this works with > 1 eid XXX
 
         eid_afi = ntohs(curr_eid->eid_afi);
+
         log_msg(INFO, "  EID: %s/%d, ttl %u, act: %d auth: %d, locators: %d",
                inet_ntop(lisp2inetafi(eid_afi), curr_eid->eid_prefix, addr_buf, 128), curr_eid->eid_masklen,
                ntohl(curr_eid->ttl), curr_eid->act, curr_eid->authoritative, curr_eid->loc_count);
+
+        /*
+         * Are we expecting instance ID?
+         */
+        if (lispd_config.use_instance_id) {
+            if (eid_afi != LISP_AFI_LCAF) {
+                log_msg(INFO, "  expected LCAF (instance ID is configured) EID, found normal, skipping.");
+                break;
+            }
+
+            lcaf = (lispd_pkt_lcaf_t *)&(curr_eid->eid_afi);
+            if (ntohs(lcaf->afi) != LISP_LCAF_INSTANCE) {
+                log_msg(INFO, "  unknown LCAF type %d in EID", ntohs(lcaf->afi));
+                break;
+            }
+
+            instance_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
+            if (instance_lcaf->instance != htonl(lispd_config.instance_id)) {
+                log_msg(INFO, "  instance-id %d does no match our configured id %d",
+                        ntohl(instance_lcaf->instance), lispd_config.instance_id);
+                break;
+            }
+            lcaf_addr = (lispd_pkt_lcaf_addr_t *)instance_lcaf->address;
+
+            eid_afi = htons(lcaf_addr->afi);
+            curr_eid_addr_ptr = (uchar *)&lcaf_addr->address;
+            eid_addr_offset += sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_lcaf_addr_t) +
+                    sizeof(lispd_pkt_instance_lcaf_t); // Account for LCAF sizes. EID address sizes accounted below
+        } else {
+            curr_eid_addr_ptr = (uchar *)&curr_eid->eid_prefix;
+        }
+
+        if (eid_afi == LISP_AFI_IP) {
+            eid_addr_offset += sizeof(struct in_addr);
+        } else if (eid_afi == LISP_AFI_IPV6) {
+            eid_addr_offset += sizeof(struct in6_addr);
+        } else {
+            log_msg(INFO, "    Unknown LISP AFI %d in EID entry, skipping", eid_afi);
+            break;
+        }
 
         // Grab a message buffer of appropriate size
         cache_msg = (lisp_eid_map_msg_t *)malloc(sizeof(lisp_eid_map_msg_t) +
@@ -200,15 +246,7 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
         memset(cache_msg, 0, sizeof(lisp_eid_map_msg_t) +
                curr_eid->loc_count * sizeof(lisp_eid_map_msg_loc_t));
 
-        if (eid_afi == LISP_AFI_IP) {
-            eid_addr_offset = sizeof(struct in_addr);
-        } else if (eid_afi == LISP_AFI_IPV6) {
-            eid_addr_offset = sizeof(struct in6_addr);
-        } else {
-            log_msg(INFO, "    Unknown LISP AFI in EID entry %d", eid_afi);
-        }
-
-        if (!build_cache_msg_eid_portion(cache_msg, curr_eid)) {
+        if (!build_cache_msg_eid_portion(cache_msg, curr_eid, eid_afi, curr_eid_addr_ptr)) {
             free(cache_msg);
             cache_msg = NULL;
 
@@ -325,7 +363,6 @@ int process_map_reply(lispd_pkt_map_reply_t *pkt)
        return(FALSE);
    }
 
-
     /*
      * Process flags
      */
@@ -343,7 +380,8 @@ int process_map_reply(lispd_pkt_map_reply_t *pkt)
     } else {
 
         /*
-         * Check for matching regular request
+         * Check for matching regular request, we should only do this after
+         * process_map_reply succeeds probably... XXX
          */
         if (!remove_eid_from_datacache(pkt->nonce)) {
             log_msg(INFO, " Unable to find matching nonce in request-list.");
@@ -516,18 +554,6 @@ lispd_pkt_map_reply_t *build_map_reply(uint32_t probe_source, int probe,
     *len = pkt_length;
     return reply_pkt;
 }
-
-void dump_message(char *msg, int length)
-{
-  int words = length / sizeof(uint32_t);
-  int i;
-
-  for (i = 0; i < words; i++) {
-      log_msg(INFO, " %06x %02x %02x %02x %02x\n", i, *msg,*(msg + 1), *(msg + 2), *(msg + 3));
-      msg = msg + 4;
-  }
-}
-
 
 /*
  * send_map_reply()

@@ -200,10 +200,6 @@ int remove_eid_from_datacache(uint64_t nonce)
 {
     datacache_elt_t *elt, *prev;
 
-    char *debug_nonce;
-    debug_nonce = lisp_print_nonce(nonce);
-    log_msg(INFO, "CSCO The nonce received is : %s", debug_nonce);
-
     elt = datacache->head;
     prev = elt;
     while (elt) {

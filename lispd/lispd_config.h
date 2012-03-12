@@ -50,6 +50,8 @@ typedef struct {
     lisp_addr_t              dns_override_address2; /* "" */
     lisp_addr_t              original_dns_address1; /* For restoration */
     lisp_addr_t              original_dns_address2; /* "" */
+    unsigned int             instance_id;
+    char                     use_instance_id;
 } lispd_config_t;
 
 extern lispd_config_t lispd_config;
@@ -62,5 +64,6 @@ int add_map_resolver(char *map_resolver);
 int add_map_server(char *map_server, int key_type, char *key, uint8_t proxy_reply, uint8_t verify);
 int set_kernel_rloc(lisp_addr_t *addr);
 int set_dns_override(char *dns_server1, char *dns_server2);
+int set_instance_id(char *instance_str);
 int restore_dns_servers(void);
 

@@ -634,11 +634,6 @@ void handle_ip_address_change(struct ifaddrmsg *ifa, uint32_t addr)
      */
     install_database_mappings();
     map_register();
-
-    /*
-     * Clear the map cache XXX Not final in draft yet
-     */
-    // clear_map_cache();
 }
 
 /*
@@ -650,24 +645,79 @@ void handle_ip_address_change(struct ifaddrmsg *ifa, uint32_t addr)
  * to deal with it, because the default router may have not been
  * reset until later.
  */
-void handle_route_change(struct rtmsg *rtm)
+#define RTA_ADDR(_x) (struct in_addr *)((char *)_x + sizeof(struct rtattr))
+
+void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
 {
-    struct rtattr* rta;
-    struct in_addr *dst;
+    struct rtattr* rta = NULL;
+    struct in_addr *dst = NULL;
+    struct in_addr *gw  = NULL;
+    struct in_addr *pref_src = NULL;
+    char is_default         = TRUE;
+    char src_is_set         = FALSE;
+    unsigned int  oif_index = 0;
+    char addr_buf[128];
+    char addr_buf2[128];
+
     /*
      * Check if anything has happened to the default
      * route. If it has, it's likely the default gateway
      * just changed. Update the routes with our versions.
      */
-    rta = (struct rtattr *)((char *)rtm + sizeof(struct rtmsg));
-    dst = (struct in_addr *)((char *)rta +sizeof(struct rtattr));
-    if ((rta->rta_type == RTA_DST) && (dst->s_addr == 0)) {
-        log_msg(INFO, "  Change is to default route, updating our routes");
+    log_msg(INFO, "RTM Prot: %d, scope: %d, type: %d, flags: %d",
+            rtm->rtm_protocol, rtm->rtm_scope, rtm->rtm_type,
+            rtm->rtm_flags);
+
+    rta = RTM_RTA(rtm);
+
+    for (; msg_len && RTA_OK(rta, msg_len); rta = RTA_NEXT(rta, msg_len))
+    {
+        switch (rta->rta_type) {
+
+        case RTA_GATEWAY:
+            gw = RTA_ADDR(rta);
+            break;
+        case RTA_DST:
+            dst = RTA_ADDR(rta);
+            if (dst->s_addr != 0) {
+                is_default = FALSE;
+            }
+            break;
+        case RTA_PREFSRC:
+            pref_src = RTA_ADDR(rta);
+            src_is_set = TRUE;
+            break;
+        case RTA_OIF:
+            oif_index = *(unsigned int *)(((char *)rta) + sizeof(struct rtattr));
+            break;
+        default:
+            break;
+        }
+    }
+
+    /*
+     * We only care about changes to default
+     */
+    if (!is_default) {
+        log_msg(INFO, "Route change not for default, ignoring.");
+        return;
+    }
+
+    /*
+     * See if this is really a change. It's possible this is a notification
+     * about our own change earlier, in which case, ignore it.
+     */
+    if ((gw->s_addr != primary_interface->default_gw.address.ip.s_addr) ||
+            (oif_index != primary_interface->if_index) ||
+            !src_is_set ||
+            (pref_src->s_addr != lispd_config.eid_address_v4.address.ip.s_addr)) {
+
+        log_msg(INFO, "Default route has changed (possibly by DHCP), overriding.");
+        delete_default_route_v4(primary_interface);
         install_default_routes(primary_interface, FALSE);
         update_map_server_routes();
     } else {
-        log_msg(INFO, "  RTA Type: %d, dst is 0x%x",
-                rta->rta_type, dst->s_addr);
+        log_msg(INFO, "Default route has not changed, ignoring.");
     }
 }
 
@@ -728,7 +778,7 @@ void process_interface_notification(void)
 
             case RTM_NEWROUTE:
                 log_msg(INFO, "Got new route change/added notification.");
-                handle_route_change((struct rtmsg *)NLMSG_DATA(nlh));
+                handle_route_change((struct rtmsg *)NLMSG_DATA(nlh), RTM_PAYLOAD(nlh));
                 break;
             case RTM_DELROUTE:
                 log_msg(INFO, "Got route deletion notification.");
@@ -873,12 +923,112 @@ int create_loopback(lisp_addr_t *addr, char *name)
 }
 
 /*
+ * delete_default_route_v4()
+ *
+ * Delete whatever default route is currently installed.
+ * This is done to override any changes that DHCP might make
+ * out from under us.
+ */
+int delete_default_route_v4 (lispd_if_t *intf)
+{
+    struct nlmsghdr *nlh;
+    struct rtmsg    *rtm;
+    struct rtattr  *rta;
+    int             rta_len = 0;
+    char   sndbuf[4096];
+    char   addr_buf[128];
+    char   addr_buf2[128];
+    int    retval;
+    int    sockfd;
+
+    sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
+
+    if (sockfd < 0) {
+          log_msg(INFO, "Failed to connect to netlink socket for delete_default_route()");
+        return(FALSE);
+    }
+
+    /*
+     * Build the command
+     */
+    memset(sndbuf, 0, 4096);
+
+    nlh = (struct nlmsghdr *)sndbuf;
+    rtm = (struct rtmsg *)(sndbuf + sizeof(struct nlmsghdr));
+
+    rta_len = sizeof(struct rtmsg);
+
+    /*
+     * Add the destination
+     */
+    rta = (struct rtattr *)((char *)rtm + sizeof(struct rtmsg));
+    rta->rta_type = RTA_DST;
+    rta->rta_len = sizeof(struct rtattr) + sizeof(struct in_addr);
+
+    // Address is already zeroed
+    rta_len += rta->rta_len;
+
+    /*
+     * Add the outgoing interface
+     */
+    rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
+    rta->rta_type = RTA_OIF;
+    rta->rta_len = sizeof(struct rtattr) + sizeof(intf->if_index); // if_index
+    memcpy(((char *)rta) + sizeof(struct rtattr), &intf->if_index,
+           sizeof(intf->if_index));
+    rta_len += rta->rta_len;
+
+    /*
+     * For IPv4, add the default gateway as well as the
+     * source preference. For IPv6 in IPv4 these items are not
+     * necessary. TBD: What happens with IPv6 in IPv6 or IPv4 in IPv6?
+     */
+
+    /*
+     * Add the gateway
+     */
+    rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
+    rta->rta_type = RTA_GATEWAY;
+    rta->rta_len = sizeof(struct rtattr) + sizeof(intf->default_gw.address.ip); // if_index
+    memcpy(((char *)rta) + sizeof(struct rtattr), &intf->default_gw.address.ip,
+           sizeof(intf->default_gw.address.ip));
+    rta_len += rta->rta_len;
+
+
+    nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
+    nlh->nlmsg_flags = NLM_F_REQUEST;
+    nlh->nlmsg_type =  RTM_DELROUTE;
+
+    rtm->rtm_family    = AF_INET;
+    rtm->rtm_table     = RT_TABLE_MAIN;
+
+   // rtm->rtm_protocol  = RTPROT_STATIC;
+   // rtm->rtm_scope     = RT_SCOPE_UNIVERSE;
+   // rtm->rtm_type      = RTN_UNICAST;
+
+    rtm->rtm_dst_len   = 0;
+
+    retval = send(sockfd, sndbuf, NLMSG_LENGTH(rta_len), 0);
+
+    if (retval < 0) {
+        log_msg(INFO, "delete_default_route: send() failed %s", strerror(errno));
+        close(sockfd);
+        return(FALSE);
+    }
+    log_msg(INFO, "Deleted default route via %s (%s)",
+           intf->name, inet_ntop(AF_INET, &intf->address.address.ip,
+                                 addr_buf, 128));
+    close(sockfd);
+    return(TRUE);
+}
+
+/*
  * install_default_route_v4()
  *
  * Installs a default route through the specified interface,
  * using the configured EID loopback as the source address.
  */
-static int install_default_route_v4(lispd_if_t *intf, int cleanup)
+static int install_default_route_v4(lispd_if_t *intf, int cleanup, int create)
 {
     struct nlmsghdr *nlh;
     struct rtmsg    *rtm;
@@ -956,14 +1106,17 @@ static int install_default_route_v4(lispd_if_t *intf, int cleanup)
     }
 
     nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
-    nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_REPLACE;
+    nlh->nlmsg_flags = NLM_F_REQUEST | (create ? NLM_F_CREATE : NLM_F_REPLACE);
     nlh->nlmsg_type =  RTM_NEWROUTE;
 
     rtm->rtm_family    = AF_INET;
     rtm->rtm_table     = RT_TABLE_MAIN;
-    rtm->rtm_protocol  = RTPROT_STATIC;
+
+    rtm->rtm_protocol  = RTPROT_BOOT;
     rtm->rtm_scope     = RT_SCOPE_UNIVERSE;
     rtm->rtm_type      = RTN_UNICAST;
+
+
     rtm->rtm_dst_len   = 0;
 
     retval = send(sockfd, sndbuf, NLMSG_LENGTH(rta_len), 0);
@@ -973,11 +1126,11 @@ static int install_default_route_v4(lispd_if_t *intf, int cleanup)
         close(sockfd);
         return(FALSE);
     }
-    log_msg(INFO, "Installed default route via %s (%s) using our EID (%s) as source",
+    log_msg(INFO, "Installed default route via %s (%s) using our EID (%s) as source, %s",
            intf->name, inet_ntop(AF_INET, &intf->address.address.ip,
                                  addr_buf, 128),
            inet_ntop(lispd_config.eid_address_v4.afi, &lispd_config.eid_address_v4.address.ip,
-                     addr_buf2, 128));
+                     addr_buf2, 128), create ? "created" : "modified");
     close(sockfd);
     return(TRUE);
 }
@@ -1063,10 +1216,10 @@ static int install_default_route_v6(lispd_if_t *intf, int cleanup)
     return(TRUE);
 }
 
-int install_default_routes(lispd_if_t *intf) {
+int install_default_routes(lispd_if_t *intf, int create) {
 
     if (lispd_config.eid_address_v4.afi) {
-        if (!install_default_route_v4(intf, FALSE)) {
+        if (!install_default_route_v4(intf, FALSE, create)) {
             return(FALSE);
         }
     }
@@ -1080,7 +1233,7 @@ int install_default_routes(lispd_if_t *intf) {
 
 void cleanup_routes() {
     if (lispd_config.eid_address_v4.afi) {
-        install_default_route_v4(primary_interface, TRUE);
+        install_default_route_v4(primary_interface, TRUE, FALSE);
     }
 }
 

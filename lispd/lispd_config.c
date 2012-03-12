@@ -112,6 +112,7 @@ int handle_lispd_config_file(void)
         CFG_SEC("interface", if_opts, CFGF_MULTI),
         CFG_STR("override-dns-primary",         0, CFGF_NONE),
         CFG_STR("override-dns-secondary",       0, CFGF_NONE),
+        CFG_STR("instance-id",                 0, CFGF_NONE),
 	CFG_END()
     };
 
@@ -207,6 +208,11 @@ int handle_lispd_config_file(void)
                                                      cfg_getstr(cfg, "override-dns-secondary"));
 
     /*
+     * Use an instance ID?
+     */
+    lispd_config.use_instance_id = set_instance_id(cfg_getstr(cfg, "instance-id"));
+
+    /*
      *	handle map-resolver config XXX should check for multiples, none
      */
     lispd_config.map_resolver_name = cfg_getstr(cfg, "map-resolver");
@@ -286,6 +292,47 @@ int set_petr_addr(char *petr_addr_str)
         return(FALSE);
     }
     return(TRUE);
+}
+
+/*
+ * set_instance_id
+ *
+ * Parse and set the instance-id if given.
+ */
+int set_instance_id(char *instance_str)
+{
+    lisp_cmd_t              *cmd;
+    lisp_set_instance_msg_t *msg;
+    int                      cmd_length = sizeof(lisp_cmd_t) + sizeof(lisp_set_instance_msg_t);
+
+
+    if (!instance_str) {
+        log_msg(INFO, "No instance ID configuration present.");
+        return(FALSE);
+    }
+
+    lispd_config.instance_id = atoi(instance_str);
+
+    if (!(cmd = (lisp_cmd_t *)malloc(sizeof(lisp_cmd_t) + sizeof(lisp_set_instance_msg_t)))) {
+        log_msg(ERROR, "Failed to allocate IPC message buffer for set instance id message");
+        return FALSE;
+    }
+
+    memset(cmd, 0, cmd_length);
+    msg = (lisp_set_instance_msg_t *)cmd->val;
+    msg->enable = TRUE;
+    msg->id = lispd_config.instance_id;
+    cmd->type = LispSetInstanceID;
+    cmd->length = sizeof(lisp_set_instance_msg_t);
+    if (send_command(cmd, cmd_length)) {
+        free(cmd);
+        log_msg(INFO, "Setting instance id to %d", lispd_config.instance_id);
+        return TRUE;
+    } else {
+        free(cmd);
+        log_msg(ERROR, "Failed to send set instance-id message to kernel");
+        return FALSE;
+    }
 }
 
 /*
@@ -498,7 +545,6 @@ int add_map_resolver(char *map_resolver)
         lispd_config.map_resolvers = list_elt;
     } else 
         lispd_config.map_resolvers = list_elt;
-    log_msg(INFO, "add_map_resolver: 5");
     return(1);
 }
 

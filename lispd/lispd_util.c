@@ -470,6 +470,18 @@ uint64_t build_nonce(int seed)
     return(nonce);
 }
 
+
+void dump_message(char *msg, int length)
+{
+  int words = length / sizeof(uint32_t);
+  int i;
+
+  for (i = 0; i < words; i++) {
+      log_msg(INFO, " %06x %02x %02x %02x %02x\n", i, *msg,*(msg + 1), *(msg + 2), *(msg + 3));
+      msg = msg + 4;
+  }
+}
+
 /*
  *      dump_X
  *
