@@ -625,7 +625,7 @@ int make_dsock_addr(const char *dsock_name, struct sockaddr_un *dsock_addr, sock
 
         strcpy(dsock_addr->sun_path, dsock_name);
 
-        dsock_addr->sun_family = AF_UNIX;
+        dsock_addr->sun_family = AF_LOCAL;
 	*dsock_len = strlen(dsock_addr->sun_path) + sizeof(dsock_addr->sun_family);
 
         return 0;
