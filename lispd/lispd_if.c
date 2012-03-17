@@ -1040,6 +1040,11 @@ static int install_default_route_v4(lispd_if_t *intf, int cleanup, int create)
     int    retval;
     int    sockfd;
 
+    if (!intf) {
+        log_msg(INFO, "No active primary interface, skipping route update.");
+        return FALSE;
+    }
+
     sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
 
     if (sockfd < 0) {
@@ -1106,7 +1111,7 @@ static int install_default_route_v4(lispd_if_t *intf, int cleanup, int create)
     }
 
     nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
-    nlh->nlmsg_flags = NLM_F_REQUEST | (create ? NLM_F_CREATE : NLM_F_REPLACE);
+    nlh->nlmsg_flags = NLM_F_REQUEST | (NLM_F_CREATE | NLM_F_REPLACE);
     nlh->nlmsg_type =  RTM_NEWROUTE;
 
     rtm->rtm_family    = AF_INET;
@@ -1115,7 +1120,6 @@ static int install_default_route_v4(lispd_if_t *intf, int cleanup, int create)
     rtm->rtm_protocol  = RTPROT_BOOT;
     rtm->rtm_scope     = RT_SCOPE_UNIVERSE;
     rtm->rtm_type      = RTN_UNICAST;
-
 
     rtm->rtm_dst_len   = 0;
 
@@ -1152,6 +1156,11 @@ static int install_default_route_v6(lispd_if_t *intf, int cleanup)
     char   addr_buf2[128];
     int    retval;
     int    sockfd;
+
+    if (!intf) {
+        log_msg(INFO, "No active primary interface, skipping route update.");
+        return FALSE;
+    }
 
     sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
 

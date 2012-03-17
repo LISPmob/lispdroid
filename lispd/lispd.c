@@ -130,15 +130,18 @@ void dump_info_file(void) {
     fprintf(fp, "Device EID(s):   ");
     if (lispd_config.eid_address_v4.afi) {
         fprintf(fp, "%s\n", inet_ntop(AF_INET,
-                                  &lispd_config.eid_address_v4.address,
-                                  addr_buf, 128));
+                                      &lispd_config.eid_address_v4.address,
+                                      addr_buf, 128));
     }
     if (lispd_config.eid_address_v6.afi) {
         fprintf(fp, "                 %s\n", inet_ntop(AF_INET6,
-                                  lispd_config.eid_address_v6.address.ipv6.s6_addr,
-                                  addr_buf, 128));
+                                                       lispd_config.eid_address_v6.address.ipv6.s6_addr,
+                                                       addr_buf, 128));
     }
 
+    if (lispd_config.use_instance_id) {
+        fprintf(fp, "Instance ID:     %d\n", lispd_config.instance_id);
+    }
     fprintf(fp, "Map Server(s):   ");
     ms = lispd_config.map_servers;
     while (ms)
@@ -147,8 +150,8 @@ void dump_info_file(void) {
             fprintf(fp, ",\n                 ");
         }
         fprintf(fp, "%s", inet_ntop(ms->address->afi,
-                                 &ms->address->address,
-                                 addr_buf, 128));
+                                    &ms->address->address,
+                                    addr_buf, 128));
         plural = TRUE;
         ms = ms->next;
     }
@@ -182,7 +185,7 @@ void dump_info_file(void) {
 
         if (lispd_config.dns_override_address2.address.ip.s_addr != 0) {
             fprintf(fp, "\nLISP Second DNS Resolver: %s", inet_ntop(AF_INET, &lispd_config.dns_override_address2.address,
-                                                                 addr_buf, 128));
+                                                                    addr_buf, 128));
         }
     }
     fclose(fp);
@@ -190,24 +193,24 @@ void dump_info_file(void) {
 
 int get_process_lock(int pid)
 {
-  struct flock fl;
-  char pidString[128];
+    struct flock fl;
+    char pidString[128];
 
-  fl.l_type = F_WRLCK;
-  fl.l_whence = SEEK_SET;
-  fl.l_start = 0;
-  fl.l_len = 1;
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_len = 1;
 
-  if ((fdlock = open(LISPD_LOCKFILE, O_WRONLY|O_CREAT, 0666)) == -1) {
-      return FALSE;
-  }
+    if ((fdlock = open(LISPD_LOCKFILE, O_WRONLY|O_CREAT, 0666)) == -1) {
+        return FALSE;
+    }
 
-  sprintf(pidString, "%d\n", pid);
-  write(fdlock, pidString, strlen(pidString));
-  if (fcntl(fdlock, F_SETLK, &fl) == -1) {
-      return FALSE;
-  }
-  return TRUE;
+    sprintf(pidString, "%d\n", pid);
+    write(fdlock, pidString, strlen(pidString));
+    if (fcntl(fdlock, F_SETLK, &fl) == -1) {
+        return FALSE;
+    }
+    return TRUE;
 }
 
 #define LISP_DCACHE_PATH_MAX 100
@@ -215,116 +218,122 @@ int get_process_lock(int pid)
 
 int make_dsock_addr(const char *dsock_name, struct sockaddr_un *dsock_addr, socklen_t *dsock_len) 
 {
-	int namelen = strlen(dsock_name);
+    int namelen = strlen(dsock_name);
 
-	if ( namelen >= ( (int)sizeof(dsock_addr->sun_path) - 1 ) ) {
-		log_msg(ERROR, "namelen greater than allowed");
-		return -1;
-	}
+    if ( namelen >= ( (int)sizeof(dsock_addr->sun_path) - 1 ) ) {
+        log_msg(ERROR, "namelen greater than allowed");
+        return -1;
+    }
 
-	strcpy(dsock_addr->sun_path, dsock_name);
+    strcpy(dsock_addr->sun_path, dsock_name);
 
-	dsock_addr->sun_family = AF_UNIX;
-	dsock_len = strlen(dsock_addr->sun_path) + sizeof(dsock_addr->sun_family);
+    dsock_addr->sun_family = AF_LOCAL;
+    dsock_len = strlen(dsock_addr->sun_path) + sizeof(dsock_addr->sun_family);
 
-	return 0;
+    return 0;
 }
 
+#define MAX_IPC_COMMAND_LEN 128
 void * handle_dcache_requests(void *arg)
 {
-	struct sockaddr_un dsock_addr;
-	socklen_t dsock_len;
-	int dsock_fd, dclient_fd;
-	char *nonce, addr_buf[128], *msg, prefix_len[10], cmd[10];
-	int msize;
+    struct sockaddr_un dsock_addr;
+    socklen_t dsock_len;
+    int dsock_fd, dclient_fd;
+    char *nonce, addr_buf[128], *msg, prefix_len[10], cmd[MAX_IPC_COMMAND_LEN];
+    int msize;
 
-	unlink(LISP_DCACHE_FILE);
-	
-	memset((char *)&dsock_addr, 0 ,sizeof(struct sockaddr_un));
+    unlink(LISP_DCACHE_FILE);
 
-	if ( make_dsock_addr(LISP_DCACHE_FILE, &dsock_addr, &dsock_len) < 0 ) {
-		log_msg(ERROR, "make_dsock failed");
-		return NULL;
-	}
+    memset((char *)&dsock_addr, 0 ,sizeof(struct sockaddr_un));
 
-	if ( (dsock_fd = socket(AF_UNIX, SOCK_STREAM, 0) ) < 0) {
-		log_msg(ERROR, "socket creation failed %s", strerror(errno));
-		return NULL;
-	}
+    if ( make_dsock_addr(LISP_DCACHE_FILE, &dsock_addr, &dsock_len) < 0 ) {
+        log_msg(ERROR, "make_dsock failed");
+        return NULL;
+    }
 
-	if ( ( bind(dsock_fd, (struct sockaddr *)&dsock_addr, sizeof(struct sockaddr_un)) ) != 0 ) {
-		log_msg(ERROR, "bind call failed %s", strerror(errno));
-		return NULL;
-	}
+    if ( (dsock_fd = socket(AF_UNIX, SOCK_STREAM, 0) ) < 0) {
+        log_msg(ERROR, "socket creation failed %s", strerror(errno));
+        return NULL;
+    }
 
-	if ( listen(dsock_fd, 1) != 0 ) {
-		log_msg(ERROR, "listen failed %s", strerror(errno));
-		return NULL;
-	}
+    if ( ( bind(dsock_fd, (struct sockaddr *)&dsock_addr, sizeof(struct sockaddr_un)) ) != 0 ) {
+        log_msg(ERROR, "bind call failed %s", strerror(errno));
+        return NULL;
+    }
 
-	log_msg(INFO, "Listening on domain socket");
+    if ( listen(dsock_fd, 1) != 0 ) {
+        log_msg(ERROR, "listen failed %s", strerror(errno));
+        return NULL;
+    }
 
-	while (1) {
-		
-		if ( ( dclient_fd = accept(dsock_fd, (struct sockaddr *)&dsock_addr, &dsock_len) ) == -1 ) {
-			log_msg(ERROR, "accept call failed %s", strerror(errno));
-			return NULL;
-		}
+    log_msg(INFO, "Listening on domain socket");
 
-	        if ( recv(dclient_fd, cmd, 10, 0) < 0 ) {
-        	        log_msg("recv call failed, %s", strerror(errno));
-                	return NULL;
-	        }
+    while (1) {
 
-		log_msg(INFO, "Received command %s", cmd);
+        if ( ( dclient_fd = accept(dsock_fd, (struct sockaddr *)&dsock_addr, &dsock_len) ) == -1 ) {
+            log_msg(ERROR, "accept call failed %s", strerror(errno));
+            return NULL;
+        }
 
-		if ( strcmp(cmd, "DCACHE") == 0 ) {
+        if ( recv(dclient_fd, cmd, MAX_IPC_COMMAND_LEN, 0) < 0 ) {
+            log_msg("recv call failed, %s", strerror(errno));
+            return NULL;
+        }
 
-			log_msg(INFO, "Got connection request for dcache.");
+        log_msg(INFO, "Received command %s", cmd);
 
-			datacache_elt_t *elt, *prev;
+        if ( strcmp(cmd, "DCACHE") == 0 ) {
 
-			elt = datacache->head;
-			while (elt) {
-				nonce = lisp_print_nonce(elt->nonce);
-				inet_ntop(elt->eid_prefix.afi, &(elt->eid_prefix.address), addr_buf, sizeof(addr_buf));
-				sprintf(prefix_len, "%d", elt->prefix_length);
-				if (msg) 
-					free(msg);
-				msize = sizeof(addr_buf) + strlen(nonce) + strlen(prefix_len) + 1;
-				msg = (char *)malloc(sizeof(char)*msize);
-				sprintf(msg, "%s#%s#%s", addr_buf, prefix_len, nonce);
-				log_msg(INFO, "dcache entry: %s", msg);
-				if ( ( send(dclient_fd, msg, 200, 0) ) < 0 ) {
-					log_msg(ERROR, "send error %s", strerror(errno));
-					return NULL;
-				}
-		        	elt = elt->next;
-			}
+            log_msg(INFO, "Got connection request for dcache.");
 
-			close(dclient_fd);
-		}
-		else if ( strcmp(cmd, "CCACHE") == 0 ) {
-	
-			log_msg(INFO, "Got connection request for clear_cache");
-			log_msg(INFO, "Clearing the Map Cache");
-			clear_map_cache();
+            datacache_elt_t *elt, *prev;
 
-			close(dclient_fd);
-		}
-	}
+            elt = datacache->head;
+            while (elt) {
+                nonce = lisp_print_nonce(elt->nonce);
+                inet_ntop(elt->eid_prefix.afi, &(elt->eid_prefix.address), addr_buf, sizeof(addr_buf));
+                sprintf(prefix_len, "%d", elt->prefix_length);
+                if (msg)
+                    free(msg);
+                msize = sizeof(addr_buf) + strlen(nonce) + strlen(prefix_len) + 1;
+                msg = (char *)malloc(sizeof(char)*msize);
+                sprintf(msg, "%s#%s#%s", addr_buf, prefix_len, nonce);
+                log_msg(INFO, "dcache entry: %s", msg);
+                if ( ( send(dclient_fd, msg, 200, 0) ) < 0 ) {
+                    log_msg(ERROR, "send error %s", strerror(errno));
+                    return NULL;
+                }
+                elt = elt->next;
+            }
 
-	return 0;
+            close(dclient_fd);
+        }
+        else if ( strcmp(cmd, "CCACHE") == 0 ) {
+
+            log_msg(INFO, "Got connection request for clear_cache");
+            log_msg(INFO, "Clearing the Map Cache");
+            clear_map_cache();
+
+            close(dclient_fd);
+        }
+        else if ( strstr(cmd, "LOCATION") ) {
+
+            log_msg(INFO, "Got location information update");
+            close(dclient_fd);
+        }
+    }
+
+    return 0;
 }
 
 void listen_on_well_known_port()
 {
-	pthread_t dcache_t;
+    pthread_t dcache_t;
 
-	if ( pthread_create(&dcache_t, NULL, handle_dcache_requests, NULL) != 0 ) {
-		log_msg(ERROR, "thread creation failed %s", strerror(errno));
-		return;
-	}
+    if ( pthread_create(&dcache_t, NULL, handle_dcache_requests, NULL) != 0 ) {
+        log_msg(ERROR, "thread creation failed %s", strerror(errno));
+        return;
+    }
 }
 
 
@@ -422,7 +431,7 @@ int main(int argc, char **argv)
     }
 
     log_msg(INFO, "Version %d.%d.%d starting up...",
-           MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
+            MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
 
     /*
      * now build the v4/v6 receive sockets

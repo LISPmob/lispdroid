@@ -167,6 +167,23 @@ lisp_addr_t *get_my_addr(char *if_name, int afi)
 }
 
 /*
+ * lispd_encode_iid_lcaf
+ *
+ * Given a pointer to an address portion of a packet or record,
+ * adds an IID LCAF to that position, returns the length of the lcaf
+ * portion in lcaf_length and the offset position to write the actual ID
+ * as the return value.
+ */
+char *lispd_encode_iid_lcaf(char *addr_ptr, int *lcaf_length)
+{
+    lispd_pkt_instance_lcaf_t *iid_lcaf;
+    lispd_pkt_lcaf_t          *lcaf;
+    lispd_pkt_lcaf_addr_t     *lcaf_addr;
+
+    return NULL;
+}
+
+/*
  *      lispd_get_address
  *
  *      return lisp_addr_t for host or 0 if none
