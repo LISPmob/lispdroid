@@ -28,7 +28,14 @@
 			<TextView android:id="@+id/updateConfeid6TV" android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_gravity="top" android:gravity="center_vertical|center_horizontal" android:textSize="25px" android:padding="7dip" android:text="@string/updateConfeid6String"></TextView>
 			<EditText android:id="@+id/updateConfeid6Text" android:text=""  android:layout_width="wrap_content" android:layout_height="wrap_content" android:padding="7dip"></EditText>
         </TableRow>
-	</TableLayout>   
+	</TableLayout>
+	<LinearLayout android:id="@+id/updateConfTableInstanceLayout" android:layout_height="wrap_content" android:layout_width="match_parent">
+		<CheckBox android:text="Use Instance-ID" android:id="@+id/updateConfUseInstance" android:layout_height="wrap_content" android:onClick="updateConfInstanceIDClicked" android:layout_width="wrap_content"></CheckBox>
+	</LinearLayout>
+	<LinearLayout android:id="@+id/updateContTableInstanceIDLayout" android:layout_height="wrap_content" android:layout_width="match_parent">
+		<TextView android:id="@+id/textView1" android:text="Instance:" android:layout_height="wrap_content" android:textSize="25px" android:layout_width="wrap_content"></TextView>
+		<EditText android:enabled="false" android:text="0" android:id="@+id/updateConfInstanceID" android:layout_height="wrap_content" android:width="80px" android:layout_width="wrap_content"></EditText>
+	</LinearLayout>   
 
     <LinearLayout android:layout_width="match_parent" android:id="@+id/updateConfLinearLayout2" android:orientation="vertical" android:layout_height="wrap_content"  >
 		<TextView android:id="@+id/updateConfTitleTV2" android:text="" android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_gravity="top" android:gravity="center_vertical|center_horizontal" android:textSize="25px"></TextView>
@@ -83,13 +90,6 @@
             <EditText android:layout_height="wrap_content" android:text="8.8.4.4" android:id="@+id/updateConfDNS2Text" android:layout_width="wrap_content" android:enabled="false"></EditText>
         </TableRow>
     </TableLayout>
-    <LinearLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/updateConfTableInstanceLayout">
-        <CheckBox android:text="Use Instance-ID" android:id="@+id/updateConfUseInstance" android:layout_width="wrap_content" android:layout_height="wrap_content" android:onClick="updateConfInstanceIDClicked"></CheckBox>
-    </LinearLayout>
-    <LinearLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/updateContTableInstanceIDLayout">
-        <TextView android:id="@+id/textView1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="25px" android:text="Instance:"></TextView>
-        <EditText android:width="80px" android:enabled="false" android:id="@+id/updateConfInstanceID" android:text="0" android:layout_width="wrap_content" android:layout_height="wrap_content"></EditText>
-    </LinearLayout>
 
 	<TableLayout android:layout_height="wrap_content" android:layout_width="match_parent" android:id="@+id/updateConftableLayout2">
         <TableRow android:id="@+id/updateConftableRow2" android:layout_width="wrap_content" android:layout_height="wrap_content">

@@ -7,14 +7,21 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import android.R.color;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.net.LocalSocket;
+import android.net.LocalSocketAddress;
 import android.os.Bundle;
 import android.os.Handler;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
@@ -26,6 +33,7 @@ import android.view.View;
 import android.view.View.OnClickListener;
 
 public class lispMonitor extends Activity implements OnClickListener {
+	protected static final float MinLocationUpdateDistance = 100; // 100 Meters
 	/** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -105,9 +113,84 @@ public class lispMonitor extends Activity implements OnClickListener {
             }
         }
         );
+        
+        // Acquire a reference to the system Location Manager
+        LocationManager locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
 
-        Log.v("lispMonitor", "Creating...");
+        // Define a listener that responds to location updates
+        LocationListener locationListener = new LocationListener() {
+			public void onLocationChanged(Location location) {
+				// Called when a new location is found by the network location
+				// provider.
+				float distance = MinLocationUpdateDistance + 1.0f; // Force first update
+				String locInfo = String.format(
+"(%f, %f, %f)", location
+						.getLatitude(), location.getLongitude(), location
+						.getAltitude());
+				if (lastLocation != null) {
+					distance = location.distanceTo(lastLocation);
+				}
+				lastLocation = location;
+
+				if (distance > MinLocationUpdateDistance) {
+					// Send location to lispd
+					lispdSocket = new LocalSocket();
+					try {
+						lispdSocket.connect(lispdSocketAddr);
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						Log.v("lispMonitor", "Failed to open lispd socket");
+						e.printStackTrace();
+						return;
+					}
+					OutputStream out;
+					try {
+						out = lispdSocket.getOutputStream();
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						Log.v("lispMonitor",
+								"Failed to get output stream to lispd");
+						e.printStackTrace();
+						return;
+					}
+
+					OutputStreamWriter writer = new OutputStreamWriter(out);
+					try {
+						writer.write("LOCATION:");
+						writer.write(locInfo);
+						writer.flush();
+						lispdSocket.close();
+					} catch (IOException e) {
+
+						// TODO Auto-generated catch block
+						Log.v("lispMonitor",
+								"Failed to send location command to lispd");
+						e.printStackTrace();
+					}
+
+					Log.v("lispMonitor", "Got location update." + locInfo);
+				}
+			}
+            public void onStatusChanged(String provider, int status, Bundle extras) {}
+
+            public void onProviderEnabled(String provider) {}
+
+            public void onProviderDisabled(String provider) {}
+          };
+
+        // Register the listener with the Location Manager to receive location updates
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+
+        // Set up the communication path to lispd. This will be extended to take over
+        // from lispconf eventually.
+        lispdSocketAddr = new LocalSocketAddress("/data/data/com.le.lispmon/lispd_dcache", LocalSocketAddress.Namespace.FILESYSTEM);
+        lispdSocket = new LocalSocket();
     }
+    
+    LocalSocketAddress lispdSocketAddr;
+    LocalSocket        lispdSocket;
+    Location lastLocation;
     
     Timer mUpdateTimer = null;
     @Override
@@ -220,7 +303,14 @@ public class lispMonitor extends Activity implements OnClickListener {
     	} else if (lispmodRunning) {
     		lispCheckBoxLabel.setText("lispd has crashed, click to restart.");
     		lispCheckBoxLabel.setTextColor(Color.RED);
+    		
     		lispCheckBox.setChecked(false);
+    		try {
+				lispdSocket.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
     		updateInfoView();
     	} else {
     		lispCheckBoxLabel.setText(R.string.lispNotRunning);
