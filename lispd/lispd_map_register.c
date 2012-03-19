@@ -31,7 +31,7 @@ static timer_t register_timer_id  = -1;
  *	in the chain so we can allocate a chunk of memory for
  *	the packet. Also return the count for inclusion in the packet.
  */
-int get_locator_length_and_count(lispd_locator_chain_elt_t *locator_chain_elt, int *loc_count)
+int get_locator_length_and_count(lispd_locator_chain_elt_t *locator_chain_elt, uint32_t *loc_count)
 {
     int sum = 0;
     int count = 0;
@@ -65,6 +65,18 @@ int get_locator_length_and_count(lispd_locator_chain_elt_t *locator_chain_elt, i
         locator_chain_elt = locator_chain_elt->next;
     }
     *loc_count = count;
+
+    /*
+     * Account for the overhead of the NAT LCAF
+     * address format, if configured
+     */
+    if (lispd_config.use_nat_lcaf) {
+
+        // AFI is double counted in the locator_t and lcaf_t, hence
+        // the subtract.
+        sum += (count * (sizeof(lispd_pkt_nat_lcaf_t) + 3 * sizeof(lispd_pkt_lcaf_addr_t) +
+                               (sizeof(lispd_pkt_lcaf_t) - sizeof(uint16_t))));
+    }
     return(sum);
 }
 
@@ -149,18 +161,17 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
     lispd_pkt_lcaf_t                   *lcaf;
     lispd_pkt_lcaf_addr_t              *lcaf_addr;
     lispd_pkt_nat_lcaf_t               *nat_lcaf;
-    lispd_pkt_instance_lcaf_t          *instance_lcaf;
     lispd_pkt_mapping_record_locator_t *loc_ptr;
     lispd_if_t                          *intf;
     char                                addr_str[128];
     lisp_addr_t                         loc_addr;
-    int					mrp_len    = 0;
-    int					loc_len    = 0;
-    int                                 loc_count  = 0;
-    int					len        = 0;
-    int					eid_afi    = 0;
-    int				        afi_len    = 0;
-    int                                 loc_afi    = 0;
+    uint32_t                            mrp_len    = 0;
+    uint32_t                            loc_len    = 0;
+    uint32_t                            loc_count  = 0;
+    uint32_t	         	        len        = 0;
+    uint16_t	            		eid_afi    = 0;
+    uint32_t			        afi_len    = 0;
+    uint16_t                            loc_afi    = 0;
 
     /*
      *	assume 1 record with locator_chain->locator_count locators
@@ -185,23 +196,6 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
                                                          * locator_chain->locator_count
 							 * locators
                                                          */
-    /*
-     * Adjust size if using NAT-LCAF addresses
-     */
-    if (lispd_config.use_nat_lcaf) {
-
-        // AFI is double counted in the locator_t and lcaf_t, hence
-        // the subtract.
-        mrp_len += (loc_count * (sizeof(lispd_pkt_nat_lcaf_t) + 3 * sizeof(lispd_pkt_lcaf_addr_t) +
-                    (sizeof(lispd_pkt_lcaf_t) - sizeof(uint16_t))));
-    }
-
-    /*
-     * Adjust size if using instance ID LCAF addresses
-     */
-    if (lispd_config.use_instance_id) {
-        mrp_len += sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_instance_lcaf_t);
-    }
 
     if ((mrp = (lispd_pkt_map_register_t *)malloc(mrp_len)) == NULL) {
         log_msg(INFO, "malloc (map-register packet): %s", strerror(errno));
@@ -237,58 +231,16 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
     mr->version_hi        = 0;
     mr->version_low       = 0;
 
-    if (lispd_config.use_instance_id) {
-        log_msg(INFO, "   adding instance ID: %d to EID mapping record",
-                lispd_config.instance_id);
-        lcaf = (lispd_pkt_lcaf_t *)((char *)mr + offsetof(lispd_pkt_mapping_record_t, eid_prefix_afi));
-        lcaf->afi = htons(LISP_AFI_LCAF);
-        lcaf->type = LISP_LCAF_INSTANCE;
-
-        // Instance ID + EID addr len + afi field
-        lcaf->length = htons(4 + afi_len + sizeof(uint16_t));
-        instance_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
-        instance_lcaf->instance = htonl(lispd_config.instance_id);
-        lcaf_addr = (lispd_pkt_lcaf_addr_t *)instance_lcaf->address;
-        if ((len = copy_addr((void *)lcaf_addr->address,
-                             &(locator_chain->eid_prefix),
-                             locator_chain->eid_prefix.afi,
-                             0)) == 0) {
-            log_msg(INFO, "eid prefix (%s) has an unknown afi (%d)",
-                    locator_chain->eid_name,
-                    locator_chain->eid_prefix.afi);
-            return(0);
-        }
-        lcaf_addr->afi = htons(eid_afi);
-
-        // Include the LCAF sizes in len, so the following code offsets correctly
-        len += sizeof(unsigned int) + sizeof(lispd_pkt_lcaf_t);
-    } else {
-
-        mr->eid_prefix_afi    = htons(eid_afi);
-
-        /*
-         * skip over the fixed mapping record and put the eid prefix immediately
-         * following...
-         */
-        if ((len = copy_addr((void *)
-                             CO(mr,sizeof(lispd_pkt_mapping_record_t)),
-                             &(locator_chain->eid_prefix),
-                             locator_chain->eid_prefix.afi,
-                             0)) == 0) {
-            log_msg(INFO, "eid prefix (%s) has an unknown afi (%d)",
-                    locator_chain->eid_name,
-                    locator_chain->eid_prefix.afi);
-            return(0);
-        }
+    if ((loc_ptr =
+            (lispd_pkt_mapping_record_locator_t *)encode_eid_for_map_record((char *)&mr->eid_prefix_afi,
+                                                                            locator_chain->eid_prefix,
+                                                                            eid_afi,
+                                                                            afi_len))) {
+        log_msg(ERROR, "   failed to encode EID in mapping record.");
+        free(mrp);
+        return(0);
     }
 	
-    /*
-     * skip over the fixed part and eid prefix, and build
-     * the locators  
-     */
-    loc_ptr = (lispd_pkt_mapping_record_locator_t *)
-	CO(mr,(sizeof(lispd_pkt_mapping_record_t) + len));
-
     while (locator_chain_elt) {
 
         intf = locator_chain_elt->interface;

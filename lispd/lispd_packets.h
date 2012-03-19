@@ -134,6 +134,11 @@ typedef struct {
     uint8_t  address[0];
 } PACKED lispd_pkt_instance_lcaf_t;
 
+typedef struct {
+    uint32_t unimplemented;
+    uint8_t address[0];
+} PACKED lispd_pkt_location_lcaf_t;
+
 /*
  * LISP NAT Travseral LCAF format
  *

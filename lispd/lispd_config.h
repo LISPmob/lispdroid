@@ -52,6 +52,7 @@ typedef struct {
     lisp_addr_t              original_dns_address2; /* "" */
     unsigned int             instance_id;
     char                     use_instance_id;
+    char                     use_location;
 } lispd_config_t;
 
 extern lispd_config_t lispd_config;

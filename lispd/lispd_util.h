@@ -13,7 +13,7 @@
 #include "lispd_db.h"
 
 int get_afi(char *str);
-int get_lisp_afi(int afi, int *len);
+int get_lisp_afi(int afi, uint32_t *len);
 int lisp2inetafi(int afi);
 int get_addr_len(int afi);
 int get_ip_header_len(int afi);
@@ -24,7 +24,7 @@ int clearbit(int word, char bit);
 struct udphdr *build_ip_header(void *cur_ptr, lisp_addr_t *src,
                                lisp_addr_t *dest, int ip_len);
 uint64_t build_nonce(int seed);
-
+char *encode_eid_for_map_record(char *dest, lisp_addr_t eid, uint16_t eid_afi, int eid_afi_len);
 
 void setup_loopback_route(void);
 int copy_lisp_addr_t(lisp_addr_t *a1, lisp_addr_t *a2, uint16_t afi, int convert);

@@ -167,20 +167,88 @@ lisp_addr_t *get_my_addr(char *if_name, int afi)
 }
 
 /*
- * lispd_encode_iid_lcaf
+ * encode_iid_lcaf
  *
  * Given a pointer to an address portion of a packet or record,
  * adds an IID LCAF to that position, returns the length of the lcaf
  * portion in lcaf_length and the offset position to write the actual ID
  * as the return value.
  */
-char *lispd_encode_iid_lcaf(char *addr_ptr, int *lcaf_length)
+char *encode_iid_lcaf(char *dest, int afi_len)
 {
     lispd_pkt_instance_lcaf_t *iid_lcaf;
     lispd_pkt_lcaf_t          *lcaf;
     lispd_pkt_lcaf_addr_t     *lcaf_addr;
 
+    log_msg(INFO, "   adding instance ID: %d to EID mapping record",
+            lispd_config.instance_id);
+    lcaf = (lispd_pkt_lcaf_t *)dest;
+    lcaf->afi = htons(LISP_AFI_LCAF);
+    lcaf->type = LISP_LCAF_INSTANCE;
+
+    // Instance ID + EID addr len + afi field
+    lcaf->length = htons(sizeof(lispd_config.instance_id) + afi_len + sizeof(uint16_t));
+    iid_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
+    iid_lcaf->instance = htonl(lispd_config.instance_id);
+
+    return((char *)(&iid_lcaf->address));
+}
+
+char *encode_geolocation_lcaf(char *dest, int afi_len)
+{
     return NULL;
+}
+
+/*
+ * encode_eid_for_map_record
+ *
+ * Build an eid address for a map record (i.e. map register packet
+ * or map-reply packet). Applies any LCAF encoding that the configuration
+ * would require. Returns pointer to the byte after the end of the
+ * EID AF encodings.
+ */
+char *encode_eid_for_map_record(char *dest, lisp_addr_t eid, uint16_t eid_afi, int eid_afi_len)
+{
+    char     *eid_addr_target = dest;
+    uint16_t *eid_afi_ptr;
+    uint32_t  len = 0;
+    uint32_t  loc_lcaf_len = 0;
+
+    if (lispd_config.use_instance_id) {
+
+        /*
+         * Account for following LCAF type if necessary
+         */
+        if (lispd_config.use_location) {
+            loc_lcaf_len = sizeof(lispd_pkt_location_lcaf_t);
+        }
+        eid_addr_target = encode_iid_lcaf(dest, eid_afi_len + loc_lcaf_len);
+    }
+
+    if (lispd_config.use_location) {
+        eid_addr_target = encode_geolocation_lcaf(eid_addr_target, eid_afi_len);
+    }
+
+    /*
+     * Encode the actual EID at the appropriate location after
+     * any LCAFs have been added.
+     */
+    eid_afi_ptr  = (uint16_t *)eid_addr_target;
+    *eid_afi_ptr = htons(eid_afi);
+    eid_addr_target += sizeof(uint16_t);
+    if ((len = copy_addr((void *)
+                         eid_addr_target,
+                         &eid,
+                         eid.afi,
+                         0)) == 0) {
+
+        log_msg(INFO, "eid prefix has an unknown afi (%d)",
+                eid.afi);
+        return(NULL);
+    }
+
+    eid_addr_target += len;
+    return (eid_addr_target);
 }
 
 /*
@@ -305,12 +373,21 @@ int isfqdn(char *s)
 /*
  *      get_lisp_afi
  *
- *      Map from Internet AFI -> LISP_AFI
+ *      Map from Internet AFI -> LISP_AFI, and determine
+ *      the length of the encoding, including whatever
+ *      LCAF encodings the configuration specifies.
  *
- *      Get the length while you're at it
  */
-int get_lisp_afi(int afi, int *len)
+int get_lisp_afi(int afi, uint32_t *len)
 {
+    if (lispd_config.use_instance_id) {
+        *len = sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_instance_lcaf_t);
+    }
+
+    if (lispd_config.use_location) {
+        *len += sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_location_lcaf_t);
+    }
+
     switch(afi) {
     case AF_INET:
         if (len)
@@ -324,6 +401,7 @@ int get_lisp_afi(int afi, int *len)
         log_msg(INFO, "get_lisp_afi: uknown AFI (%d)", afi);
         return(0);
     }
+
     return(0);
 }
 
