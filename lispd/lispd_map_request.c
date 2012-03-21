@@ -227,6 +227,7 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
     struct udphdr				*udph;
     lisp_addr_t				        *src_addr;
     lisp_addr_t                                 *src_eid;
+    uint16_t                                     src_eid_afi;
     lispd_pkt_lcaf_t                            *lcaf;
     lispd_pkt_lcaf_addr_t                       *lcaf_addr;
     lispd_pkt_instance_lcaf_t                   *instance_lcaf;
@@ -259,7 +260,7 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
         return(0);
     }
 
-    get_lisp_afi(src_eid->afi, &src_eid_len);
+    src_eid_afi = get_lisp_afi(src_eid->afi, &src_eid_len);
 
     /*
      * caclulate sizes of interest
@@ -281,14 +282,6 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
         my_addr_len                                       + /* len of ITR RLOC */
         sizeof(lispd_pkt_map_request_eid_prefix_record_t) +
         eid_len;					    /* len of EID prefix */
-
-    /*
-     * Adjust size if using instance ID LCAF addresses, once for the source EID
-     * and once for the requested EID.
-     */
-    if (lispd_config.use_instance_id) {
-        udp_len += 2 * (sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_instance_lcaf_t));
-    }
 
     ip_len     = ip_header_len + udp_len;
     packet_len = ip_len;
@@ -348,57 +341,12 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
     mrp->nonce                     = build_nonce((unsigned int)time(NULL));
     *nonce                         = mrp->nonce;
 
-    /*
-     * If using an instance ID, must wrap the source EID in the LCAF. This
-     * pattern is common, should abstract away to a function.
-     */
-    if (lispd_config.use_instance_id) {
-        log_msg(INFO, "   adding instance ID: %d to source EID",
-                lispd_config.instance_id);
-        lcaf = (lispd_pkt_lcaf_t *)((char *)mrp + offsetof(lispd_pkt_map_request_t, source_eid_afi));
-        lcaf->afi = htons(LISP_AFI_LCAF);
-        lcaf->type = LISP_LCAF_INSTANCE;
-
-        // Instance ID + EID addr len + afi field
-        lcaf->length = htons(4 + src_eid_len + sizeof(uint16_t));
-        instance_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
-        instance_lcaf->instance = htonl(lispd_config.instance_id);
-        lcaf_addr = (lispd_pkt_lcaf_addr_t *)instance_lcaf->address;
-        if ((alen = copy_addr((void *)lcaf_addr->address,
-                             src_eid,
-                             src_eid->afi,
-                             0)) == 0) {
-            log_msg(INFO, "source eid prefix (0x%x) has an unknown afi (%d)",
-                    &src_eid->address,
-                    src_eid->afi);
-            free(packet);
-            return(0);
-        }
-        lcaf_addr->afi = htons(get_lisp_afi(src_eid->afi, NULL));
-
-        // Include the LCAF sizes, so the later code offsets correctly
-        cur_ptr = CO(mrp, sizeof(lispd_pkt_map_request_t) + sizeof(unsigned int) +
-                     sizeof(lispd_pkt_lcaf_t));
-    } else {
-
-        mrp->source_eid_afi            = htons(get_lisp_afi(src_eid->afi, NULL)); // XXX
-
-        /*
-         * Source-EID address goes here.
-         *
-         *	point cur_ptr at where the variable length Source-EID
-         *  address goes.
-         */
-        cur_ptr = CO(mrp, sizeof(lispd_pkt_map_request_t));
-        if ((alen = copy_addr(cur_ptr,
-                              src_eid,
-                              src_eid->afi,
-                              0)) == 0) {
-            free(packet);
-            return(0);
-        }
+    if (!(itr_rloc = (lispd_pkt_map_request_itr_rloc_t *)encode_eid_for_map_record((char *)&(mrp->source_eid_afi), *src_eid, src_eid_afi, src_eid_len))) {
+        log_msg(ERROR, "   failed to encode source EID in request mapping record.");
+        free(mrp);
+        return(0);
     }
-    itr_rloc      = (lispd_pkt_map_request_itr_rloc_t *)CO(cur_ptr, alen);
+
     itr_rloc->afi = htons(get_lisp_afi(rloc_addr->afi, NULL));
     cur_ptr = CO(itr_rloc, sizeof(lispd_pkt_map_request_itr_rloc_t));
     if ((alen = copy_addr(cur_ptr,
@@ -413,40 +361,13 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
      * finally, the requested EID prefix, wrap in instance ID LCAF if
      * necessary.
      */
+
     eid_rec = (lispd_pkt_map_request_eid_prefix_record_t *)CO(cur_ptr, alen);
     eid_rec->eid_prefix_mask_length = eid_prefix_length;
-
-    if (lispd_config.use_instance_id) {
-        lcaf = (lispd_pkt_lcaf_t *)(&(eid_rec->eid_prefix_afi));
-        lcaf->afi = htons(LISP_AFI_LCAF);
-        lcaf->type = LISP_LCAF_INSTANCE;
-
-        // Instance ID + EID addr len + afi field
-        lcaf->length = htons(4 + eid_len + sizeof(uint16_t));
-        instance_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
-        instance_lcaf->instance = htonl(lispd_config.instance_id);
-        lcaf_addr = (lispd_pkt_lcaf_addr_t *)instance_lcaf->address;
-        if ((alen = copy_addr((void *)lcaf_addr->address,
-                             eid_prefix,
-                             eid_prefix->afi,
-                             0)) == 0) {
-            log_msg(INFO, "Request eid prefix (0x%x) has an unknown afi (%d)",
-                    &eid_prefix->address,
-                     eid_prefix->afi);
-            free(packet);
-            return(0);
-        }
-        lcaf_addr->afi = htons(get_lisp_afi(eid_prefix->afi, NULL));
-    } else {
-        eid_rec->eid_prefix_afi         = htons(get_lisp_afi(eid_prefix->afi, NULL));
-        cur_ptr = CO(eid_rec, sizeof(lispd_pkt_map_request_eid_prefix_record_t));
-        if (copy_addr(cur_ptr,				/* EID */
-                      eid_prefix,
-                      eid_prefix->afi,
-                      0) == 0) {
-            free(packet);
-            return(0);
-        }
+    if (!encode_eid_for_map_record((char *)&(eid_rec->eid_prefix_afi), *eid_prefix, eid_afi, eid_len)) {
+        log_msg(ERROR, "   failed to encode request EID in request mapping record.");
+        free(mrp);
+        return(0);
     }
 
     /*

@@ -335,6 +335,7 @@ void listen_on_well_known_port()
         log_msg(ERROR, "thread creation failed %s", strerror(errno));
         return;
     }
+    pthread_detach(dcache_t);
 }
 
 

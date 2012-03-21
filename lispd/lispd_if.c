@@ -659,6 +659,7 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
     char addr_buf[128];
     char addr_buf2[128];
 
+
     /*
      * Check if anything has happened to the default
      * route. If it has, it's likely the default gateway

@@ -524,7 +524,7 @@ lispd_pkt_map_reply_t *build_map_reply(uint32_t probe_source, int probe,
         } else {
             loc_afi = locator_chain_elt->locator_afi;
         }
-        loc_rec->loc_afi = htons(get_lisp_afi(loc_afi, &afi_len));
+        loc_rec->loc_afi = htons(get_lisp_afi(loc_afi, NULL));
 
         /*
          * skip over the mapping record locator, and copy the locator

@@ -231,7 +231,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
     mr->version_hi        = 0;
     mr->version_low       = 0;
 
-    if ((loc_ptr =
+    if (!(loc_ptr =
             (lispd_pkt_mapping_record_locator_t *)encode_eid_for_map_record((char *)&mr->eid_prefix_afi,
                                                                             locator_chain->eid_prefix,
                                                                             eid_afi,
@@ -306,7 +306,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
             nat_lcaf = (lispd_pkt_nat_lcaf_t *)lcaf->address;
             nat_lcaf->port = htons(intf->translated_encap_port);
             lcaf_addr = (lispd_pkt_lcaf_addr_t *)nat_lcaf->addresses;
-            lcaf_addr->afi =  htons(get_lisp_afi(loc_afi, &afi_len));
+            lcaf_addr->afi =  htons(get_lisp_afi(loc_afi, NULL));
             if ((len = copy_addr(lcaf_addr->address,
                                  &(loc_addr),
                                  loc_afi, 0)) == 0) {
@@ -330,7 +330,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
                         ntohs(nat_lcaf->port));
             }
         } else {
-            loc_ptr->locator_afi = htons(get_lisp_afi(loc_afi, &afi_len));
+            loc_ptr->locator_afi = htons(get_lisp_afi(loc_afi, NULL));
             if ((len = copy_addr((void *)CO(loc_ptr, sizeof(lispd_pkt_mapping_record_locator_t)),
                                  &(loc_addr),
                                  loc_afi, 0)) == 0) {
@@ -407,6 +407,7 @@ int map_register(void)
                                 "Couldn't send map-register for %s",
                                 locator_chain->eid_name);
                     }
+                    dump_message(map_register_pkt, locator_chain->mrp_len);
                     ms = ms->next;
                 }
                 free(map_register_pkt);

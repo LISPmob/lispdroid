@@ -178,7 +178,6 @@ char *encode_iid_lcaf(char *dest, int afi_len)
 {
     lispd_pkt_instance_lcaf_t *iid_lcaf;
     lispd_pkt_lcaf_t          *lcaf;
-    lispd_pkt_lcaf_addr_t     *lcaf_addr;
 
     log_msg(INFO, "   adding instance ID: %d to EID mapping record",
             lispd_config.instance_id);
@@ -191,7 +190,7 @@ char *encode_iid_lcaf(char *dest, int afi_len)
     iid_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
     iid_lcaf->instance = htonl(lispd_config.instance_id);
 
-    return((char *)(&iid_lcaf->address));
+    return((char *)&(iid_lcaf->address));
 }
 
 char *encode_geolocation_lcaf(char *dest, int afi_len)
@@ -263,10 +262,6 @@ lisp_addr_t *lispd_get_address(char *host, lisp_addr_t *addr, uint32_t *flags)
     struct ifaddrs      *ifa;
     struct sockaddr_in  *s4;
     struct sockaddr_in6 *s6;
-
-    /* 
-     * make sure this is clean
-     */
 
     memset((void *) &(addr->address), 0, sizeof(lisp_addr_t));
 
@@ -377,25 +372,33 @@ int isfqdn(char *s)
  *      the length of the encoding, including whatever
  *      LCAF encodings the configuration specifies.
  *
+ *      Pass in a length argument if you want to find out
+ *      what the encoded length of the address would be,
+ *      including various LCAF's. (Currently this only
+ *      works for EIDs, this will need to be updated
+ *      if RLOC address lengths are needed as well).
+ *
  */
 int get_lisp_afi(int afi, uint32_t *len)
 {
-    if (lispd_config.use_instance_id) {
-        *len = sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_instance_lcaf_t);
-    }
+    if (len) {
+        if (lispd_config.use_instance_id) {
+            *len = sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_instance_lcaf_t);
+        }
 
-    if (lispd_config.use_location) {
-        *len += sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_location_lcaf_t);
+        if (lispd_config.use_location) {
+            *len += sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_location_lcaf_t);
+        }
     }
 
     switch(afi) {
     case AF_INET:
         if (len)
-            *len = sizeof(struct in_addr);
+            *len += sizeof(struct in_addr);
         return(LISP_AFI_IP);
     case AF_INET6:
         if (len)
-            *len = sizeof(struct in6_addr);
+            *len += sizeof(struct in6_addr);
         return(LISP_AFI_IPV6);
     default:
         log_msg(INFO, "get_lisp_afi: uknown AFI (%d)", afi);
