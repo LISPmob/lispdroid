@@ -1,0 +1,20 @@
+#
+#	README
+#
+#	Start a README for the lispd
+#
+#
+#	David Meyer
+#	dmm613@gmail.com
+#	Mon May 10 13:09:56 2010
+#
+#	$Header: $
+#
+
+
+
+	I.	Dependencies
+
+		libconfuse-dev (config parser)
+		libssl-dev     (HMAC/crypto stuff)
+		librt          (clock_gettime)

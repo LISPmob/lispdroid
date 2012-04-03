@@ -1,0 +1,271 @@
+#
+#
+#       lispd config file for dmm-xtr-1.lisp4.net
+#
+#       Parse using -lconfuse
+#
+#       See e.g. http://www.nongnu.org/confuse/
+#
+#
+#       David Meyer
+#       dmm@1-4-5.net
+#       Fri Apr 16 13:00:02 PDT 2010
+#
+#       $Header: /home/dmm/lisp/lispd/RCS/lispd.conf,v 1.5 2010/04/19 17:00:59 dmm Exp $
+#
+
+#
+#       lispd config
+#
+debug                = on 
+map-request-retries  = 3 /* send 3 map-requests before giving up */
+
+#
+#       LISP Config
+#
+map-resolver        = 128.223.156.35  
+
+
+database-mapping {
+        eid-prefix = 153.16.22.0/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1233::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1233::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.10.1/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1202::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1202::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.10.2/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1203::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1203::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.10.3/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1204::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1204::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.10.4/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1205::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1205::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.10.5/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1206::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1206::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.10.6/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1207::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1207::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.10.7/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1208::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1208::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.8.0/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1209::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1209::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.9.0/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1210::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1210::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.11.0/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1211::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1211::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+database-mapping {
+        eid-prefix = 153.16.31.0/24
+        rloc       = eth0
+        priority   = 1 
+        weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1212::/48
+          rloc       = 128.223.156.134
+          priority   = 2 
+          weight     = 50
+}
+database-mapping {
+          eid-prefix = 2610:00d0:1212::/48
+          rloc       = 2001:0468:0d01:009c::80df:9c86
+          priority   = 3 
+          weight     = 50
+}
+
+database-mapping {
+         eid-prefix = 153.16.10.0/24
+         rloc       = 207.98.65.94
+         priority   = 1 
+         weight     = 50
+}
+
+map-server {
+        address     = 128.223.156.35
+        key-type    = 0
+        key         = foo%bar
+}
+
+map-server {
+        address     = 204.69.200.7
+        key-type    = 0 
+        key         = foo%bar
+}
+
+static-map-cache {
+        eid-prefix = 153.16.10.0/24
+         rloc       =  128.223.156.134
+         priority   =  1 
+         weight     =  100
+}
+

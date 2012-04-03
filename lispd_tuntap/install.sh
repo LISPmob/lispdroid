@@ -1,0 +1,7 @@
+#!/bin/sh
+adb push ../../out/target/product/crespo/obj/EXECUTABLES/lispd_intermediates/LINKED/lispd /system/bin/lispd
+cp ../../out/target/product/crespo/obj/EXECUTABLES/lispd_intermediates/LINKED/lispd .
+#adb push lispd.conf /sdcard/lispd.conf
+adb push ../../out/target/product/crespo/obj/EXECUTABLES/lispconf_intermediates/LINKED/lispconf /system/bin/lispconf
+adb push ../../out/target/product/crespo/obj/EXECUTABLES/lispmanager_intermediates/LINKED/lispmanager /system/bin/lispmanager
+adb shell chmod 4755 /system/bin/lispmanager
