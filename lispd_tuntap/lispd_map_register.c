@@ -407,7 +407,7 @@ int map_register(void)
                                 "Couldn't send map-register for %s",
                                 locator_chain->eid_name);
                     }
-                    dump_message(map_register_pkt, locator_chain->mrp_len);
+          //          dump_message(map_register_pkt, locator_chain->mrp_len);
                     ms = ms->next;
                 }
                 free(map_register_pkt);

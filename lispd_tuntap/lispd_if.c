@@ -659,7 +659,6 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
     char addr_buf[128];
     char addr_buf2[128];
 
-
     /*
      * Check if anything has happened to the default
      * route. If it has, it's likely the default gateway
@@ -708,15 +707,17 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
      * See if this is really a change. It's possible this is a notification
      * about our own change earlier, in which case, ignore it.
      */
-    if ((gw->s_addr != primary_interface->default_gw.address.ip.s_addr) ||
+    if (gw && (gw->s_addr != primary_interface->default_gw.address.ip.s_addr) ||
             (oif_index != primary_interface->if_index) ||
             !src_is_set ||
             (pref_src->s_addr != lispd_config.eid_address_v4.address.ip.s_addr)) {
 
         log_msg(INFO, "Default route has changed (possibly by DHCP), overriding.");
-        delete_default_route_v4(primary_interface);
-        install_default_routes(primary_interface, FALSE);
-        update_map_server_routes();
+
+        // NOT NOW FOR TUN/TAP
+   // XXX    delete_default_route_v4(primary_interface);
+   // XXX    install_default_routes(primary_interface, FALSE);
+    // XXX    update_map_server_routes();
     } else {
         log_msg(INFO, "Default route has not changed, ignoring.");
     }

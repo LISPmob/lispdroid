@@ -435,6 +435,40 @@ int install_map_cache_entries()
 #endif
 
 /*
+ * handle_cache_miss
+ *
+ * Take the action required when a packet's EID
+ * is not in the cache.
+ */
+void handle_cache_miss(lisp_addr_t eid)
+{
+    int eid_prefix_len = 0;
+    char addrstr[128];
+
+    /*
+     * Look up in the data cache, see if we have an outstanding request in the queue
+     *
+     */
+    if (eid.afi == AF_INET6) {
+        eid_prefix_len = 128;
+    } else {
+        eid_prefix_len = 32;
+    }
+    if (!find_eid_in_datacache(&eid, eid_prefix_len)) {
+        if (!build_and_send_map_request(&eid, eid_prefix_len)) { // Always /32 or /128? XXX
+            log_msg(INFO,"handle_cache_miss_msg:couldn't build/send map_request");
+        }
+        inet_ntop(eid.afi, &eid.address, addrstr, 128);
+        log_msg(INFO, "built and send map request for %s", addrstr);
+    } else {
+#ifdef DEBUG_CACHE_MISS
+        log_msg(INFO,"map request already outstanding for this EID");
+#endif
+    }
+}
+
+
+/*
  * handle_cache_miss_msg
  *
  * Deal with a cache miss notification from the kernel
@@ -450,28 +484,7 @@ void handle_cache_miss_msg(lisp_cmd_t *cmd)
         return;
     }
 
-    /*
-     * Look up in the data cache, see if we have an outstanding request in the queue
-     *
-     */
-    if (miss_msg->eid.afi == AF_INET6) {
-       eid_prefix_len = 128;
-    } else {
-        eid_prefix_len = 32;
-    }
-    if (!find_eid_in_datacache(&miss_msg->eid, eid_prefix_len)) {
-        if (!build_and_send_map_request(&miss_msg->eid, eid_prefix_len)) { // Always /32 or /128? XXX
-            log_msg(INFO,"handle_cache_miss_msg:couldn't build/send map_request");
-        }
-        inet_ntop(miss_msg->eid.afi, &miss_msg->eid.address, addrstr, 128);
-        log_msg(INFO, "built and send map request for %s", addrstr);
-    } else {
-#ifdef DEBUG_CACHE_MISS
-        log_msg(INFO,"map request already outstanding for this EID");
-#endif
-    }
-
-    return;
+    handle_cache_miss(miss_msg->eid);
 }
 
 /*

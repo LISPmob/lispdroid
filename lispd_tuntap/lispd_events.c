@@ -29,6 +29,7 @@ int	v4_receive_fd			= 0;
 int	netlink_fd			= 0;
 int     signal_fd                       = 0;
 int     rtnetlink_fd                    = 0;
+int     tun_receive_fd                  = 0;
 fd_set  readfds;
 
 /*
@@ -247,6 +248,21 @@ int process_event_signal(void)
 }
 
 /*
+ * process_output_packet
+ *
+ * Process an output packet, possibly destined for encapsulation.
+ */
+void process_output_packet(void)
+{
+    char rcvbuf[2048];
+    int nread;
+
+    log_msg(INFO, "In process_output_packet()");
+    nread = read(tun_receive_fd, rcvbuf, 2048);
+    lisp_output4(rcvbuf);
+}
+
+/*
  *	Retrieve a mesage from socket s
  */
 int retrieve_lisp_msg(int s, uint8_t *packet, void *from, int afi)
@@ -343,23 +359,24 @@ void event_loop(void)
     int    retval;
 
     /*
-     *	calculate the max_fd for select. Is there a better way
-     *  to do this?
+     *	calculate the max_fd for select.
      */
 
+    log_msg(INFO, "tunnel fd in event_loop is: %d", tun_receive_fd);
     max_fd = (v4_receive_fd > v6_receive_fd) ? v4_receive_fd : v6_receive_fd;
-    max_fd = (max_fd > netlink_fd)           ? max_fd : netlink_fd;
+  //  max_fd = (max_fd > netlink_fd)           ? max_fd : netlink_fd;
     max_fd = (max_fd > signal_fd)            ? max_fd : signal_fd;
     max_fd = (max_fd > rtnetlink_fd)         ? max_fd : rtnetlink_fd;
+    max_fd = (max_fd > tun_receive_fd)       ? max_fd : tun_receive_fd;
 
     for (EVER) {
         FD_ZERO(&readfds);
         FD_SET(v4_receive_fd, &readfds);
    //     FD_SET(v6_receive_fd, &readfds);
-        FD_SET(netlink_fd, &readfds);
+   //     FD_SET(netlink_fd, &readfds);
         FD_SET(signal_fd, &readfds);
         FD_SET(rtnetlink_fd, &readfds);
-
+        FD_SET(tun_receive_fd, &readfds);
         retval = have_input(max_fd, &readfds);
         if (retval == -1) {
             break;           /* doom */
@@ -373,14 +390,17 @@ void event_loop(void)
      //   if (FD_ISSET(v6_receive_fd, &readfds)) {
      //       process_lisp_msg(v6_receive_fd, AF_INET6);
      //   }
-        if (FD_ISSET(netlink_fd, &readfds)) {
-            process_kernel_msg();
-        }
+      //  if (FD_ISSET(netlink_fd, &readfds)) {
+      //      process_kernel_msg();
+      //  }
         if (FD_ISSET(signal_fd, &readfds)) {
             process_event_signal();
         }
         if (FD_ISSET(rtnetlink_fd, &readfds)) {
             process_interface_notification();
+        }
+        if (FD_ISSET(tun_receive_fd, &readfds)) {
+            process_output_packet();
         }
     }
 }

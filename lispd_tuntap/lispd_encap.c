@@ -598,8 +598,6 @@ unsigned int lisp_output4(char *packet_buf)
          inet_ntop(AF_INET, &iph->saddr, addr_buf2, 128), iph->protocol);
 #endif
 
-  dump_message(packet_buf, 64);
-
   /*
    * Don't encapsulate LISP control messages
    */
@@ -651,9 +649,10 @@ unsigned int lisp_output4(char *packet_buf)
    */
   if (retval == 0 || !eid_entry->count) {
 
-    log_msg(INFO, "        No EID mapping found, notifying lispd...\n");
+    log_msg(INFO, "        No EID mapping found, triggering request...\n");
     miss_addr.address.ip.s_addr = iph->daddr;
- //   send_cache_miss_notification(miss_addr, AF_INET);
+    miss_addr.afi = AF_INET;
+    handle_cache_miss(miss_addr);
     return(0);
   }
 

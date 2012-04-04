@@ -445,12 +445,12 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    create_tables();
+
     if (create_tun() < 0) {
         log_msg(FATAL, "  exiting...");
         exit(EXIT_FAILURE);
     }
-
-    start_tun_recv();
 
     if (build_event_socket() == 0)
     {
@@ -458,8 +458,6 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
     log_msg(INFO, "Built receive/event sockets");
-
-    create_tables();
 
     /*
      *	Now do the config file
@@ -485,9 +483,12 @@ int main(int argc, char **argv)
 
     set_timer(RLOCProbeScan, RLOC_PROBE_CHECK_INTERVAL);
 
+    // Open up the data plane
+    // start_tun_recv();
+
     clear_map_cache();
 
-    listen_on_well_known_port();
+    // listen_on_well_known_port();
 
     dump_info_file();
     event_loop();

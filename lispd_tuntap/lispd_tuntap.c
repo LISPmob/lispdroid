@@ -20,7 +20,7 @@
 
 const char *Tundev = "lisp_tun";
 const unsigned int TunReceiveSize = 2048; // Should probably tune to match largest MTU
-int tun_fd = -1;
+extern int tun_receive_fd;
 
 int create_tun() {
 
@@ -36,9 +36,9 @@ int create_tun() {
      */
 
     /* open the clone device */
-    if( (tun_fd = open(clonedev, O_RDWR)) < 0 ) {
+    if( (tun_receive_fd = open(clonedev, O_RDWR)) < 0 ) {
         log_msg(INFO, "TUN/TAP: Failed to open clone device");
-        return tun_fd;
+        return -1;
     }
 
     /* preparation of the struct ifr, of type "struct ifreq" */
@@ -48,15 +48,16 @@ int create_tun() {
     strncpy(ifr.ifr_name, Tundev, IFNAMSIZ);
 
     /* try to create the device */
-    if ( (err = ioctl(tun_fd, TUNSETIFF, (void *) &ifr)) < 0 ) {
-        close(tun_fd);
+    if ( (err = ioctl(tun_receive_fd, TUNSETIFF, (void *) &ifr)) < 0 ) {
+        close(tun_receive_fd);
         log_msg(INFO, "TUN/TAP: Failed to create tunnel interface.");
         return err;
     }
 
     /* this is the special file descriptor that the caller will use to talk
      * with the virtual interface */
-    return tun_fd;
+    log_msg(INFO, "tunnel fd at creation is %d", tun_receive_fd);
+    return tun_receive_fd;
 }
 
 void *tun_recv(void *arg)
@@ -66,7 +67,7 @@ void *tun_recv(void *arg)
 
     rcvbuf = malloc(TunReceiveSize);
     while (1) {
-        nread = read(tun_fd, rcvbuf, TunReceiveSize);
+        nread = read(tun_receive_fd, rcvbuf, TunReceiveSize);
         lisp_output4(rcvbuf);
     }
 }
@@ -79,6 +80,6 @@ void start_tun_recv()
         log_msg(ERROR, "TUN/TAP receiver thread creation failed %s", strerror(errno));
         return;
     }
-    pthread_detach(receiver_thread);
+ //   pthread_detach(receiver_thread);
 }
 
