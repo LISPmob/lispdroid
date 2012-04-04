@@ -982,4 +982,46 @@ try_search_best (patricia_tree_t *tree, int afi, char *string)
 
 }
 
+patricia_node_t *
+make_and_lookup_v4 (patricia_tree_t *tree, uint32_t prefixkey, int prefixlen)
+{
+    prefix_t *prefix;
+    patricia_node_t *node;
+    uint32_t bitlen, maxbitlen = 0;
+    struct in_addr sin;
+
+    memcpy(&sin, &prefixkey, sizeof(struct in_addr));
+    maxbitlen = sizeof(struct in_addr) * 8;
+    bitlen = prefixlen;
+    prefix = New_Prefix(AF_INET, &sin, bitlen);
+
+    printf ("make_and_lookup: %s/%d\n", prefix_toa (prefix), prefix->bitlen);
+    node = patricia_lookup (tree, prefix);
+    Deref_Prefix (prefix);
+    printf (" New prefix has %d references, tree has %d active nodes\n",
+            prefix->ref_count, tree->num_active_node);
+    return (node);
+}
+
+patricia_node_t *
+make_and_lookup_v6 (patricia_tree_t *tree, struct in6_addr prefixkey,
+                 int prefixlen)
+{
+    prefix_t *prefix;
+    patricia_node_t *node;
+    uint32_t bitlen, maxbitlen = 0;
+    struct in6_addr sin;
+
+    memcpy(&sin, &prefixkey, sizeof(struct in6_addr));
+    maxbitlen = sizeof(struct in6_addr) * 8;
+    bitlen = prefixlen;
+    prefix = New_Prefix(AF_INET6, &sin, bitlen);
+
+    printf ("make_and_lookup: %pI6/%d\n", prefixkey.s6_addr, prefix->bitlen);
+    node = patricia_lookup (tree, prefix);
+    Deref_Prefix (prefix);
+    return (node);
+}
+
+
 /* } */

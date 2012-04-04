@@ -48,6 +48,7 @@
 #include "lispd_syslog.h"
 #include "lispd_map_register.h"
 #include "lispd_timers.h"
+#include "tables.h"
 #include "version.h"
 
 /*
@@ -277,7 +278,7 @@ void * handle_dcache_requests(void *arg)
         }
 
         if ( recv(dclient_fd, cmd, MAX_IPC_COMMAND_LEN, 0) < 0 ) {
-            log_msg("recv call failed, %s", strerror(errno));
+            log_msg(INFO, "recv call failed, %s", strerror(errno));
             return NULL;
         }
 
@@ -417,21 +418,22 @@ int main(int argc, char **argv)
                " remove %s.\n", LISPD_LOCKFILE);
         exit(EXIT_FAILURE);
     }
-
+#if 0
     if (!setup_netlink()) {
         log_msg(FATAL, "Can't set up netlink socket, exiting...");
         exit(EXIT_FAILURE);
     }
+#endif
     if (!setup_rtnetlink()) {
         log_msg(FATAL, "Can't setup rtnetlink socket, exiting...");
         exit(EXIT_FAILURE);
     }
-
+#if 0
     if (!register_lispd_process()) {
         log_msg(FATAL, "Couldn't register lispd process, exiting...");
         exit(EXIT_FAILURE);
     }
-
+#endif
     log_msg(INFO, "Version %d.%d.%d starting up...",
             MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION);
 
@@ -443,12 +445,21 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    if (create_tun() < 0) {
+        log_msg(FATAL, "  exiting...");
+        exit(EXIT_FAILURE);
+    }
+
+    start_tun_recv();
+
     if (build_event_socket() == 0)
     {
         log_msg(FATAL, "  exiting...");
         exit(EXIT_FAILURE);
     }
     log_msg(INFO, "Built receive/event sockets");
+
+    create_tables();
 
     /*
      *	Now do the config file

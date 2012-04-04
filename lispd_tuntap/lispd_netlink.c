@@ -20,6 +20,7 @@
 #include "lispd_timers.h"
 #include "lisp_ipc.h" // From lisp_mod directory, need to harmonize this XXX
 #include "lispd_map_request.h"
+#include "tables.h"
 
 struct  sockaddr_nl dst_addr;
 struct  sockaddr_nl src_addr;
@@ -186,7 +187,10 @@ int install_database_mapping(lispd_locator_chain_t *chain)
         locator = locator->next;
     }
     map_msg->count = loc_count;
-    retval = send_command(cmd, cmd_length);
+
+    add_eid_db_entry(map_msg);
+    log_msg(INFO, "here...");
+ //   retval = send_command(cmd, cmd_length);
     free(cmd);
     return(retval);
 }
@@ -245,24 +249,6 @@ int install_database_mappings(void)
     dump_info_file();
     schedule_solicit_map_requests();
     return(1);
-}
-
-/*
- * clear_map_cache()
- *
- * Send a message to the kernel instructing it to clear the entire
- * map cache.
- */
-void clear_map_cache(void)
-{
-    int cmd_length = sizeof(lisp_cmd_t);
-    lisp_cmd_t cmd;
-
-    cmd.length = 0;
-    cmd.type = LispMapCacheClear;
-
-    log_msg(INFO, "Calling send_command with map cache");
-    send_command(&cmd, cmd_length);
 }
 
 /*

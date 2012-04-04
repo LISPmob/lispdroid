@@ -1,6 +1,6 @@
-cd ~/source/nexusdroid
-source $ANDROID_HOME/build/envsetup.sh
-setpaths
+ANDROID_HOME=/home/chris/source/cyanogen
+. $ANDROID_HOME/build/envsetup.sh
+#setpaths
 OUT_ROOT=$ANDROID_HOME/$(get_build_var PRODUCT_OUT)
 echo "OUT_ROOT = $OUT_ROOT"
 OUT_SYMBOLS=$ANDROID_HOME/$(get_build_var TARGET_OUT_UNSTRIPPED)
