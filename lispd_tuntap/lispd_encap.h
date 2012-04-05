@@ -9,5 +9,5 @@
 
 #pragma once
 
-unsigned int lisp_output4(char *packet_buf);
+unsigned int lisp_output4(char *packet_buf, int length);
 unsigned int lisp_output6(char *packet_buf);

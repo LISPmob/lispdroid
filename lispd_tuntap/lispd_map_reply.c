@@ -691,11 +691,15 @@ void send_map_reply(lispd_pkt_map_request_t *pkt,
                          0,
                          (struct sockaddr *)&dst,
                          sizeof(struct sockaddr))) < 0) {
+        close(s);
+        free(iphdr);
         log_msg(INFO, "sendto (send_map_request): %s", strerror(errno));
         return;
     }
 
     if (nbytes != (len + sizeof(struct udphdr) + sizeof(struct ip))) {
+        close(s);
+        free(iphdr);
         log_msg(INFO,
                "send_map_request: nbytes (%d) != packet_len (%d)\n",
                nbytes, len);

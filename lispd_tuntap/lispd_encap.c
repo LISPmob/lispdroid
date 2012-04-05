@@ -12,7 +12,9 @@
 #include <netinet/udp.h>
 #include "net/route.h"
 #include "lispd_encap.h"
+#include "lispd_if.h"
 #include "packettypes.h"
+#include "lispd_config.h"
 #include "tables.h"
 
 #define DEBUG 
@@ -41,6 +43,47 @@ static inline unsigned char output_hash_v4(unsigned int src_eid, unsigned int ds
     return ((((hash & 0xFFFF0000) << 16) ^ (hash & 0xFFFF)) % LOC_HASH_SIZE);
 }
 
+int ipv4_transmit(char *packet_buf, int length, uint32_t dst_addr)
+{
+    int s, nbytes;
+    struct sockaddr_in dst;
+
+    /* XXX: assumes v4 transport */
+    if ((s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) < 0) {
+        log_msg(INFO, "socket (send_map_request): %s", strerror(errno));
+        return 0;
+    }
+
+    memset((char *) &dst, 0, sizeof(dst));
+
+    dst.sin_family      = AF_INET;	/* XXX: assume v4 transport */
+    dst.sin_addr.s_addr = dst_addr;
+
+    if ((nbytes = sendto(s,
+                         (const void *)packet_buf,
+                         length,
+                         0,
+                         (struct sockaddr *)&dst,
+                         sizeof(struct sockaddr))) < 0) {
+        close(s);
+        free(packet_buf);
+        log_msg(INFO, "sendto (ipv4_transmit): %s", strerror(errno));
+        return 0;
+    }
+
+    if (nbytes != length) {
+        close(s);
+        free(packet_buf);
+        log_msg(INFO,
+               "ipv4_transmit: nbytes (%d) != packet_len (%d)\n",
+               nbytes, length);
+        return 0;
+    }
+    close(s);
+    free(packet_buf);
+    return 1;
+}
+
 #if 0
 uint32_t get_rloc_address_from_skb(struct sk_buff *skb)
 {
@@ -61,109 +104,51 @@ uint32_t get_rloc_address_from_skb(struct sk_buff *skb)
     printk(KERN_INFO "  Using source RLOC %pi4 from ifindex: %d", &entry->addr.address.ip.s_addr, entry->ifindex);
     return entry->addr.address.ip.s_addr;
 }
-
-void lisp_encap4(struct sk_buff *skb, int locator_addr,
-		 ushort inner_afi)
+#endif
+void lisp_encap4(char *packet_buf, int length, int locator_addr)
 {
   struct udphdr *udh;
   struct iphdr *iph;
-  struct iphdr *old_iph = ip_hdr(skb);
+  struct iphdr *old_iph = (struct iphdr *)packet_buf;
   struct lisphdr *lisph;
-  struct sk_buff *new_skb = NULL;
-  uint32_t orig_length = skb->len;
-  uint32_t pkt_len, err;
-  uint32_t max_headroom;
-  struct net_device *tdev; // Output device
-  struct rtable *rt; // route to RLOC
+  char    *new_packet;
+  uint32_t encap_size;
   uint32_t rloc = 0;
 
-  if (globals.multiple_rlocs) {
-      rloc = get_rloc_address_from_skb(skb);
-  } else {
-      if (globals.if_to_rloc_hash_table[0]) {
-          rloc = globals.if_to_rloc_hash_table[0]->addr.address.ip.s_addr;
-      }
-  }
+  //if (globals.multiple_rlocs) {
+  //    rloc = get_rloc_address_from_skb(skb);
+  //} else {
+  //    if (globals.if_to_rloc_hash_table[0]) {
+  rloc = get_primary_interface()->address.address.ip.s_addr;
+  //    }
+  //}
 
   if (!rloc) {
-      printk(KERN_INFO "Unable to determine source rloc for ifindex: %d", skb->mark);
+      log_msg(INFO, "Unable to determine source rloc");
       return;
   }
 
-  /*
-   * Painful: we have to do a routing check on our
-   * proposed RLOC dstadr to determine the output
-   * device. This is so that we can be assured
-   * of having the proper space available in the 
-   * skb to add our headers. This is modelled after
-   * the ipip.c code.
-   */
-  {
-    struct flowi fl = { .oif = 0,
-			.nl_u = { .ip4_u = 
-				  { .daddr = locator_addr,
-                                    .saddr = rloc,
-				    .tos = RT_TOS(old_iph->tos) } },
-			.proto = IPPROTO_UDP };
-    if (ip_route_output_key(&init_net, &rt, &fl)) {
-      printk(KERN_INFO "Route lookup for locator %pI4 failed\n", &locator_addr);
-      return;
-    }
-  }
-  
-  /*
-   * Get the output device 
-   */
-  tdev = rt->u.dst.dev;
-  
-#ifdef DEBUG_PACKETS
-  printk(KERN_INFO "   Got route for RLOC\n");
-#endif
 
   /*
    * Handle fragmentation XXX 
    */
-  
-  /* 
-   * Determine if we have enough space.
-   */
-  max_headroom = (LL_RESERVED_SPACE(tdev) + sizeof(struct iphdr) +
-		  sizeof(struct udphdr) + sizeof(struct lisphdr));
-#ifdef DEBUG_PACKETS
-  printk(KERN_INFO "    Max headroom is %d\n", max_headroom);
-#endif
 
   /*
-   * If not, gotta make some more.
+   * Allocate space for the new packet. (We'll do this in a better way later
+   * that doesn't require such an operation, by using a larger buffer at
+   * receive and pointing the read far enough in that we have headeroom. XXX
    */
-  if (skb_headroom(skb) < max_headroom || skb_shared(skb) ||
-      (skb_cloned(skb) && !skb_clone_writable(skb, 0))) {
-#ifdef DEBUG_PACKETS
-    printk(KERN_INFO "    Forced to allocate new sk_buff\n");
-#endif
-    new_skb = skb_realloc_headroom(skb, max_headroom);
-    if (!new_skb) {
-      ip_rt_put(rt);
-      printk(KERN_INFO "Failed to allocate new skb for packet encap\n");
-      return;
-    }
+  encap_size = sizeof(struct lisphdr) + sizeof(struct iphdr) +
+          sizeof(struct udphdr);
+  new_packet = (char *)malloc(length + encap_size);
 
-    /*
-     * Repoint socket if necessary
-     */
-    if (skb->sk) 
-      skb_set_owner_w(new_skb, skb->sk);
-
-    dev_kfree_skb(skb);
-    skb = new_skb;
-    old_iph = ip_hdr(skb);
-  }
+  memcpy(new_packet + encap_size, packet_buf, length);
 
   /* 
    * Construct and add the LISP header
    */
-  lisph = (struct lisphdr *)(skb_push(skb, sizeof(struct lisphdr)));
-  skb_reset_transport_header(skb);
+  lisph = (struct lisphdr *)(new_packet + sizeof(struct iphdr) +
+                             sizeof(struct udphdr));
 
   memset((char *)lisph, 0, sizeof(struct lisphdr));
 
@@ -174,18 +159,18 @@ void lisp_encap4(struct sk_buff *skb, int locator_addr,
   /*
    * Using instance ID? Or it in.
    */
-  if (globals.use_instance_id) {
-      lisph->instance_id = 1;
-      lisph->lsb_bits |= htonl(globals.instance_id << 8);
-  }
+ // if (globals.use_instance_id) {
+ //     lisph->instance_id = 1;
+ //     lisph->lsb_bits |= htonl(globals.instance_id << 8);
+ // }
 
   lisph->nonce_present = 1;
-  lisph->nonce[0] = net_random() & 0xFF;
-  lisph->nonce[1] = net_random() & 0xFF;
-  lisph->nonce[2] = net_random() & 0xFF;
+  lisph->nonce[0] = random() & 0xFF;
+  lisph->nonce[1] = random() & 0xFF;
+  lisph->nonce[2] = random() & 0xFF;
 
 #ifdef DEBUG_PACKETS
-  printk(KERN_INFO "          rflags: %d, e: %d, l: %d, n: %d, i: %d, id/lsb: 0x%x",
+  log_msg(INFO, "          rflags: %d, e: %d, l: %d, n: %d, i: %d, id/lsb: 0x%x",
              lisph->rflags, lisph->echo_nonce, lisph->lsb,
              lisph->nonce_present, lisph->instance_id, ntohl(lisph->lsb_bits));
 #endif
@@ -193,79 +178,40 @@ void lisp_encap4(struct sk_buff *skb, int locator_addr,
   /* 
    * Construct and add the udp header
    */
-  udh = (struct udphdr *)(skb_push(skb, sizeof(struct udphdr)));
-  skb_reset_transport_header(skb);
+  udh = (struct udphdr *)(new_packet + sizeof(struct iphdr));
 
   /*
    * Hash of inner header source/dest addr. This needs thought.
    */
-  udh->source = htons(globals.udp_encap_port);
+  udh->source = htons(lispd_config.local_data_port);
   udh->dest =  htons(LISP_ENCAP_PORT);
-  udh->len = htons(sizeof(struct udphdr) + orig_length +
+  udh->len = htons(sizeof(struct udphdr) + length +
 		   sizeof(struct lisphdr));
   udh->check = 0; // SHOULD be 0 as in LISP ID
 
   /*
    * Construct and add the outer ip header
    */
-  skb->transport_header = skb->network_header;
-  iph = (struct iphdr *)skb_push(skb, sizeof(struct iphdr));
-  skb_reset_network_header(skb);
-  memset(&(IPCB(skb)->opt), 0, sizeof(IPCB(skb)->opt));
-  IPCB(skb)->flags &= ~(IPSKB_XFRM_TUNNEL_SIZE | IPSKB_XFRM_TRANSFORMED |
-                                IPSKB_REROUTED);
+  iph = (struct iphdr *)new_packet;
 
-#ifdef NEW_KERNEL
-  skb_dst_drop(skb);
-  skb_dst_set(skb, &rt->u.dst);
-#else
-  dst_release(skb->dst);
-  skb->dst = &rt->u.dst;
-#endif
-  iph           = ip_hdr(skb);
   iph->version  =    4;
   iph->ihl      =     sizeof(struct iphdr)>>2;
   iph->frag_off = 0;   // XXX recompute above, use method in 5.4.1 of draft
   iph->protocol = IPPROTO_UDP;
   iph->tos      = old_iph->tos; // Need something else too? XXX
-  iph->daddr    = rt->rt_dst;
+  iph->daddr    = locator_addr;
   iph->saddr    = rloc;
   iph->ttl      = old_iph->ttl;
 
 #ifdef DEBUG_PACKETS
-  printk(KERN_INFO "     Packet encapsulated to %pI4 from %pI4\n",
-	 &(iph->daddr), &(iph->saddr));
+ log_msg(INFO, "     Packet encapsulated to 0x%xfrom 0x%x\n",
+         (iph->daddr), (iph->saddr));
 #endif
-  nf_reset(skb);
-  
-  /* 
-   * We must transmit the packet ourselves:
-   * the skb has probably changed out from under
-   * the upper layers that have a reference to it.
-   * 
-   * This is the same work that the tunnel code does
-   */
-  pkt_len = skb->len - skb_transport_offset(skb);
-
-  ip_select_ident(iph, &rt->u.dst, NULL);
-
-  /*
-   * We want the equivalent of ip_local_output, but
-   * without taking a pass through the NF_HOOK again.
-   * We'd just come right back here. May be wary of
-   * all this does too: fragmentation, etc.... XXX
-   */
-  iph->tot_len = htons(skb->len);
-  ip_send_check(iph);
-
-  err = dst_output(skb);
-  if (net_xmit_eval(err) != 0) {
-    printk(KERN_INFO "     ip_local_out() reported an error: %d\n", err);
-  }
-
+  ipv4_transmit(new_packet, length + encap_size, locator_addr);
   return;
 }
 
+#if 0
 void lisp_encap6(struct sk_buff *skb, lisp_addr_t locator_addr,
 		 ushort inner_afi)
 {
@@ -575,7 +521,7 @@ bool is_v4addr_local(struct iphdr *iph, struct sk_buff *packet_buf)
 }
 #endif
 
-unsigned int lisp_output4(char *packet_buf)
+unsigned int lisp_output4(char *packet_buf, int length)
 {
   struct iphdr *iph;
   struct udphdr *udh;
@@ -675,7 +621,7 @@ unsigned int lisp_output4(char *packet_buf)
   /* 
    * Prepend UDP, LISP, outer IP header
    */
-  //lisp_encap4(packet_buf, locator_addr, AF_INET);
+  lisp_encap4(packet_buf, length, locator_addr);
 
   eid_entry->locator_list[loc_index]->data_packets_out++;
 

@@ -368,7 +368,10 @@ int install_map_cache_entry(lisp_eid_map_msg_t *map_msg, int loc_count)
     cmd->type   = LispMapCacheAdd;
     cmd->length = sizeof(lisp_eid_map_msg_t) + sizeof(lisp_eid_map_msg_loc_t) * loc_count;
     memcpy(cmd->val, (char *)map_msg, cmd->length);
-    retval = send_command(cmd, cmd_length);
+
+    add_eid_cache_entry(map_msg);
+
+    //  retval = send_command(cmd, cmd_length);
     free(cmd);
     return(retval);
 }

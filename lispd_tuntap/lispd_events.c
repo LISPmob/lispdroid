@@ -18,6 +18,7 @@
 #include "lispd_netlink.h"
 #include "lispd_map_reply.h"
 #include "lispd_timers.h"
+#include "packettypes.h"
 
 static int signal_pipe[2]; // We don't have signalfd in bionic, fake it.
 
@@ -30,6 +31,7 @@ int	netlink_fd			= 0;
 int     signal_fd                       = 0;
 int     rtnetlink_fd                    = 0;
 int     tun_receive_fd                  = 0;
+int     data_receive_fd                 = 0;
 fd_set  readfds;
 
 /*
@@ -119,7 +121,6 @@ int build_receive_sockets(void)
     /*
      *  build the v4_receive_fd, and make the port reusable
      */
-
     if ((v4_receive_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
         log_msg(ERROR, "socket (v4): %s", strerror(errno));
         return(0);
@@ -134,7 +135,6 @@ int build_receive_sockets(void)
         return(0);
     }
 
-    memset(&v4,0,sizeof(v4));           /* be sure */
     v4.sin_port        = htons(lispd_config.local_control_port);
     v4.sin_family      = AF_INET;
     v4.sin_addr.s_addr = INADDR_ANY;
@@ -144,6 +144,34 @@ int build_receive_sockets(void)
         return(0);
     }
 
+    /*
+     * build the v4 data packet receive socket.
+     */
+    /*
+     *  build the v4_receive_fd, and make the port reusable
+     */
+    if ((data_receive_fd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) < 0) {
+        log_msg(ERROR, "socket (v4): %s", strerror(errno));
+        return(0);
+    }
+
+    if (setsockopt(data_receive_fd,
+                   SOL_SOCKET,
+                   SO_REUSEADDR,
+                   &tr,
+                   sizeof(int)) == -1) {
+        log_msg(ERROR, "setsockopt (v4): %s", strerror(errno));
+        return(0);
+    }
+
+    v4.sin_port        = htons(lispd_config.local_data_port);
+    v4.sin_family      = AF_INET;
+    v4.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(data_receive_fd,(struct sockaddr *) &v4, sizeof(v4)) == -1) {
+        log_msg(ERROR, "bind (v4): %s", strerror(errno));
+        return(0);
+    }
 #ifndef ANDROID
     /*
      *  build the v6_receive_fd, and make the port reusable
@@ -259,7 +287,19 @@ void process_output_packet(void)
 
     log_msg(INFO, "In process_output_packet()");
     nread = read(tun_receive_fd, rcvbuf, 2048);
-    lisp_output4(rcvbuf);
+    lisp_output4(rcvbuf, nread);
+}
+
+/*
+ * process_input_packet
+ *
+ * Quick and dirty decapsulator for testing
+ */
+void process_input_packet(char *packet_buf, int length)
+{
+    log_msg(INFO, "Hey I got an input packet!");
+
+    write(tun_receive_fd, packet_buf + sizeof(struct lisphdr), length - sizeof(struct lisphdr));
 }
 
 /*
@@ -273,16 +313,17 @@ int retrieve_lisp_msg(int s, uint8_t *packet, void *from, int afi)
     char                addr_buf[128];
     int			fromlen4 = sizeof(struct sockaddr_in);
     int			fromlen6 = sizeof(struct sockaddr_in6);
+    int                 recv_len;
 
     switch(afi) {
     case AF_INET:
         s4 = (struct sockaddr_in *) from;
-        if (recvfrom(s,
+        if ((recv_len = recvfrom(s,
                      packet,
                      MAX_IP_PACKET,
                      0,
                      (struct sockaddr *) s4,
-                     &fromlen4) < 0) {
+                     &fromlen4)) < 0) {
             log_msg(ERROR, "recvfrom (v4): %s", strerror(errno));
             return(0);
         }
@@ -304,6 +345,12 @@ int retrieve_lisp_msg(int s, uint8_t *packet, void *from, int afi)
         return(0);
     }
 
+    // HACK!
+    if ((ntohs(s4->sin_port) == LISP_DATA_PORT) && (((lispd_pkt_encapsulated_control_t *) packet)->type == LISP_ENCAP_CONTROL_TYPE)) {
+        process_input_packet(packet, recv_len);
+        return(1);
+    }
+
     if (((lispd_pkt_encapsulated_control_t *) packet)->type == LISP_ENCAP_CONTROL_TYPE) {
         log_msg(INFO, "Received encapsulated control message, decapsulating...");
         packet = decapsulate_ecm_packet(packet);
@@ -311,6 +358,7 @@ int retrieve_lisp_msg(int s, uint8_t *packet, void *from, int afi)
 
     log_msg(INFO, "Received LISP control packet with sport %d",
             ntohs(s4->sin_port));
+
     /*
      * This only works because the type
      * field is in the same location in all lisp control
@@ -368,7 +416,7 @@ void event_loop(void)
     max_fd = (max_fd > signal_fd)            ? max_fd : signal_fd;
     max_fd = (max_fd > rtnetlink_fd)         ? max_fd : rtnetlink_fd;
     max_fd = (max_fd > tun_receive_fd)       ? max_fd : tun_receive_fd;
-
+    max_fd = (max_fd > data_receive_fd)      ? max_fd : data_receive_fd;
     for (EVER) {
         FD_ZERO(&readfds);
         FD_SET(v4_receive_fd, &readfds);
@@ -377,6 +425,8 @@ void event_loop(void)
         FD_SET(signal_fd, &readfds);
         FD_SET(rtnetlink_fd, &readfds);
         FD_SET(tun_receive_fd, &readfds);
+        FD_SET(data_receive_fd, &readfds);
+
         retval = have_input(max_fd, &readfds);
         if (retval == -1) {
             break;           /* doom */
@@ -402,6 +452,9 @@ void event_loop(void)
         if (FD_ISSET(tun_receive_fd, &readfds)) {
             process_output_packet();
         }
+       // if (FD_ISSET(data_receive_fd, &readfds)) {
+       //     process_input_packet(NULL, 0);
+       // }
     }
 }
 

@@ -68,7 +68,7 @@ void *tun_recv(void *arg)
     rcvbuf = malloc(TunReceiveSize);
     while (1) {
         nread = read(tun_receive_fd, rcvbuf, TunReceiveSize);
-        lisp_output4(rcvbuf);
+        lisp_output4(rcvbuf, nread);
     }
 }
 
