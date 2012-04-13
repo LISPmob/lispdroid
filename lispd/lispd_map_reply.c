@@ -204,12 +204,14 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
             }
 
             lcaf = (lispd_pkt_lcaf_t *)&(curr_eid->eid_afi);
-            if (ntohs(lcaf->afi) != LISP_LCAF_INSTANCE) {
-                log_msg(INFO, "  unknown LCAF type %d in EID", ntohs(lcaf->afi));
+            dump_message(lcaf, 128);
+            if (lcaf->type != LISP_LCAF_INSTANCE) {
+                log_msg(INFO, "  unknown LCAF type %d in EID", lcaf->type);
                 break;
             }
 
             instance_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
+            instance_lcaf->instance = htonl(223);
             if (instance_lcaf->instance != htonl(lispd_config.instance_id)) {
                 log_msg(INFO, "  instance-id %d does no match our configured id %d",
                         ntohl(instance_lcaf->instance), lispd_config.instance_id);
@@ -219,7 +221,7 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
 
             eid_afi = htons(lcaf_addr->afi);
             curr_eid_addr_ptr = (uchar *)&lcaf_addr->address;
-            eid_addr_offset += sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_lcaf_addr_t) +
+            eid_addr_offset += sizeof(lispd_pkt_lcaf_t) +
                     sizeof(lispd_pkt_instance_lcaf_t); // Account for LCAF sizes. EID address sizes accounted below
         } else {
             curr_eid_addr_ptr = (uchar *)&curr_eid->eid_prefix;
