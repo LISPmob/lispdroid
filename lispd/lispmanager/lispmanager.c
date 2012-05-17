@@ -17,6 +17,7 @@
 //#include "lispmanager.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 const char *moduleFilename = "/system/modules/lisp.ko";
 const char *moduleName = "lisp";
@@ -25,6 +26,8 @@ const char *moduleInstallCommand = "/system/bin/insmod";
 const char *moduleRemoveCommand = "/system/bin/rmmod";
 const char *killCommand = "/system/bin/kill -15";
 const char *lockFilename = "/sdcard/lispd.lock";
+const char *moduleCheckFilename = "/proc/modules";
+const char *procCheckCommand = "/system/xbin/pgrep -l lispd";
 
 int startDaemon(void)
 {
@@ -59,13 +62,54 @@ int removeKernelMod(void)
     return(system(commandstring));
 }
 
+void getStatus(void)
+{
+    FILE *procModFile;
+    FILE *procPipe;
+    char  statusString[128];
+    int nbytes;
+    char found = 0;
+
+    procModFile = fopen(moduleCheckFilename, "r");
+
+    while (!feof(procModFile)) {
+        fread(statusString, 128, 1, procModFile);
+        if (strstr(statusString, "lisp")) {
+            printf("LISP Kernel module is loaded.\n");
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf("LISP kernel module is NOT loaded.\n");
+    }
+
+    found = 0;
+
+    procPipe = popen(procCheckCommand, "r");
+
+    if (!procPipe) {
+        printf("Failed to execute pgrep.\n");
+        exit(-1);
+    }
+    memset(statusString, 0, 128);
+    fgets(statusString, 128, procPipe);
+    if (strstr(statusString, "lispd")) {
+        printf("LISP process is running.\n");
+        return;
+    }
+
+    printf("LISP process is NOT running.\n");
+}
+
 int main(int argc, char **argv)
 {
 
     if (argc != 2) {
         printf("Usage: \n");
-        printf("lispmanager [start|stop] stops or starts the lispd process\n");
-        printf("lispmanager [install|remove] installs or removes the kernel module");
+        printf("lispmanager [start|stop]: stops or starts the lispd process\n");
+        printf("lispmanager [install|remove]: installs or removes the kernel module\n");
+        printf("lispmanager status: displays lisp process and module status.\n");
         exit(-1);
     }
 
@@ -77,6 +121,9 @@ int main(int argc, char **argv)
       exit(installKernelMod());
     } else if (!strncmp(argv[1], "remove", 6)) {
        exit(removeKernelMod());
+    } else if (!strncmp(argv[1], "status", 6)) {
+        getStatus();
+        exit(0);
     } else {
         exit(-1);
     }
