@@ -31,8 +31,10 @@ const char *procCheckCommand = "/system/xbin/pgrep -l lispd";
 
 int startDaemon(void)
 {
-    printf("Starting lisp daemon");
-    return(system(daemonCommand));
+    int status;
+    printf("Starting lisp daemon\n");
+    status = system(daemonCommand);
+    return(status);
 }
 
 int stopDaemon(void)
@@ -75,13 +77,13 @@ void getStatus(void)
     while (!feof(procModFile)) {
         fread(statusString, 128, 1, procModFile);
         if (strstr(statusString, "lisp")) {
-            printf("LISP Kernel module is loaded.\n");
+            printf("Kernel module: loaded.\n");
             found = 1;
         }
     }
 
     if (!found) {
-        printf("LISP kernel module is NOT loaded.\n");
+        printf("Kernel module: not loaded.\n");
     }
 
     found = 0;
@@ -95,11 +97,11 @@ void getStatus(void)
     memset(statusString, 0, 128);
     fgets(statusString, 128, procPipe);
     if (strstr(statusString, "lispd")) {
-        printf("LISP process is running.\n");
+        printf("lispd: running.\n");
         return;
     }
 
-    printf("LISP process is NOT running.\n");
+    printf("lispd: not running.\n");
 }
 
 int main(int argc, char **argv)
