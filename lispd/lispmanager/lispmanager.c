@@ -34,6 +34,7 @@ int startDaemon(void)
     int status;
     printf("Starting lisp daemon\n");
     status = system(daemonCommand);
+    printf("\n");
     return(status);
 }
 
@@ -42,10 +43,13 @@ int stopDaemon(void)
     FILE *lockFile = fopen(lockFilename, "r");
     int pid;
     char killstring[128];
+    int status;
 
     fscanf(lockFile, "%d", &pid);
     sprintf(killstring, "%s %d", killCommand, pid);
-    return(system(killstring));
+    status = system(killstring);
+    printf("\n");
+    return(status);
 }
 
 int installKernelMod(void)
@@ -71,6 +75,7 @@ void getStatus(void)
     char  statusString[128];
     int nbytes;
     char found = 0;
+    char status = 0;
 
     procModFile = fopen(moduleCheckFilename, "r");
 
@@ -84,6 +89,7 @@ void getStatus(void)
 
     if (!found) {
         printf("Kernel module: not loaded.\n");
+        status = 2;
     }
 
     found = 0;
@@ -98,10 +104,12 @@ void getStatus(void)
     fgets(statusString, 128, procPipe);
     if (strstr(statusString, "lispd")) {
         printf("lispd: running.\n");
-        return;
+        exit(status);
     }
 
     printf("lispd: not running.\n");
+    status = 1;
+    exit(status);
 }
 
 int main(int argc, char **argv)
@@ -120,12 +128,11 @@ int main(int argc, char **argv)
     } else if (!strncmp(argv[1], "stop", 4)) {
         exit(stopDaemon());
     } else if (!strncmp(argv[1], "install", 7)) {
-      exit(installKernelMod());
+        exit(installKernelMod());
     } else if (!strncmp(argv[1], "remove", 6)) {
        exit(removeKernelMod());
     } else if (!strncmp(argv[1], "status", 6)) {
         getStatus();
-        exit(0);
     } else {
         exit(-1);
     }
