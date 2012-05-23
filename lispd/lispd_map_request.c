@@ -655,9 +655,6 @@ uint64_t build_and_send_smr(lisp_addr_t *target, lisp_addr_t *eid_prefix,
             close(s);
             return(0);
         }
-#ifdef DEBUG_PACKETS
-        dump_message(packet, len);
-#endif
         free(packet);
     } PATRICIA_WALK_END;
     close(s);
@@ -822,10 +819,6 @@ void process_map_request(lispd_pkt_map_request_t *pkt,
     if (pkt->solicit_map_request) {
         handle_incoming_smr(pkt, sa);
     }
-
-#ifdef DEBUG_PACKETS
-    dump_message(pkt, sizeof(lispd_pkt_map_request_t));
-#endif
 
     /*
      * Check for an outstanding request in the data cache

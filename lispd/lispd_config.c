@@ -130,6 +130,8 @@ int handle_lispd_config_file(void)
         return 2;
     }
     
+    setup_log();
+
     /*
      *	lispd config options
      */

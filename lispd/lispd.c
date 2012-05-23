@@ -202,7 +202,7 @@ int get_process_lock(int pid)
     fl.l_start = 0;
     fl.l_len = 1;
 
-    if ((fdlock = open(LISPD_LOCKFILE, O_WRONLY|O_CREAT, 0666)) == -1) {
+    if ((fdlock = open(LISPD_LOCKFILE, O_WRONLY|O_CREAT|O_EXCL, 0666)) == -1) {
         return FALSE;
     }
 
@@ -212,6 +212,18 @@ int get_process_lock(int pid)
         return FALSE;
     }
     return TRUE;
+}
+
+void remove_process_lock()
+{
+    close(fdlock);
+    unlink(LISPD_LOCKFILE);
+}
+
+void die(int exitcode)
+{
+    remove_process_lock();
+    exit(exitcode);
 }
 
 #define LISP_DCACHE_PATH_MAX 100
@@ -240,7 +252,7 @@ void * handle_dcache_requests(void *arg)
     struct sockaddr_un dsock_addr;
     socklen_t dsock_len;
     int dsock_fd, dclient_fd;
-    char *nonce, addr_buf[128], *msg, prefix_len[10], cmd[MAX_IPC_COMMAND_LEN];
+    char *nonce, addr_buf[128], *msg = NULL, prefix_len[10], cmd[MAX_IPC_COMMAND_LEN];
     int msize;
 
     unlink(LISP_DCACHE_FILE);
@@ -378,14 +390,12 @@ int main(int argc, char **argv)
             exit(EXIT_FAILURE);
         if ((chdir("/")) < 0)
             exit(EXIT_FAILURE);
+
         /*
          * Redirect standard files to /dev/null save fd in
          * case we need to get back to stdout later
          */
         fd = dup(fileno(stdout));
-        freopen( "/dev/null", "r", stdin);
-        freopen( "/dev/null", "w", stdout);
-        freopen( "/dev/null", "w", stderr);
     }
 
     signal(SIGHUP,  signal_handler);
@@ -396,40 +406,30 @@ int main(int argc, char **argv)
     init_timers();
 
     /*
-     *	set up syslog now, checking to see if we're daemonizing...
-     */
-    setup_log();
-
-    /*
      * Check if lispd is already running. Only allow one instance!
      */
     if (!get_process_lock(getpid())) {
         log_msg(FATAL, "lispd already running, please stop before restarting. If this seems wrong"
                 " remove %s.", LISPD_LOCKFILE);
 
-        /*
-         * Wrench stdout back so we can nofity user outside log
-         */
-        dup2(fd, fileno(stdout));
-        close(fd);
-        clearerr(stdout);
+
         printf("lispd already running, please stop before restarting.\n If this appears wrong,"
                " remove %s.\n", LISPD_LOCKFILE);
         exit(EXIT_FAILURE);
     }
 
     if (!setup_netlink()) {
-        log_msg(FATAL, "Can't set up netlink socket, exiting...");
-        exit(EXIT_FAILURE);
+        log_msg(FATAL, "Can't set up netlink socket (is the kernel module loaded?), exiting...");
+        die(EXIT_FAILURE);
     }
     if (!setup_rtnetlink()) {
         log_msg(FATAL, "Can't setup rtnetlink socket, exiting...");
-        exit(EXIT_FAILURE);
+        die(EXIT_FAILURE);
     }
 
     if (!register_lispd_process()) {
         log_msg(FATAL, "Couldn't register lispd process, exiting...");
-        exit(EXIT_FAILURE);
+        die(EXIT_FAILURE);
     }
 
     log_msg(INFO, "Version %d.%d.%d starting up...",
@@ -440,13 +440,13 @@ int main(int argc, char **argv)
      */
     if (build_receive_sockets() == 0) {
         log_msg(FATAL, "  exiting...");
-        exit(EXIT_FAILURE);
+        die(EXIT_FAILURE);
     }
 
     if (build_event_socket() == 0)
     {
         log_msg(FATAL, "  exiting...");
-        exit(EXIT_FAILURE);
+        die(EXIT_FAILURE);
     }
     log_msg(INFO, "Built receive/event sockets");
 
@@ -456,14 +456,19 @@ int main(int argc, char **argv)
     if (handle_lispd_config_file()) {
         log_msg(FATAL, "Fatal error parsing config file.");
         dump_fatal_error();
-        exit(EXIT_FAILURE);
+        die(EXIT_FAILURE);
     }
+
+    /*
+     *	set up syslog now, checking to see if we're daemonizing...
+     */
+    setup_log();
 
     log_msg(INFO, "Read config file");
 
     if (!install_database_mappings()) {
         log_msg(FATAL, "  exiting...");
-        exit(EXIT_FAILURE);
+        die(EXIT_FAILURE);
     }
 #ifdef DEADCODE
     if (!install_map_cache_entries())
@@ -481,7 +486,8 @@ int main(int argc, char **argv)
     dump_info_file();
     event_loop();
     log_msg(INFO, "exiting...");		/* event_loop returned bad */
-    return 0;
+    remove_process_lock();
+    exit(0);
 }
 
 

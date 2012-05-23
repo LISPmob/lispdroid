@@ -73,7 +73,6 @@ void getStatus(void)
     FILE *procModFile;
     FILE *procPipe;
     char  statusString[128];
-    int nbytes;
     char found = 0;
     char status = 0;
 
@@ -89,7 +88,9 @@ void getStatus(void)
 
     if (!found) {
         printf("Kernel module: not loaded.\n");
+        printf("lispd: not running.\n");
         status = 2;
+        exit(status);
     }
 
     found = 0;

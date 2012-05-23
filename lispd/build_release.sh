@@ -7,7 +7,7 @@ cp ../lisp_mod/lisp.ko releasedir
 cp ../../out/target/product/crespo/obj/EXECUTABLES/lispconf_intermediates/LINKED/lispconf releasedir
 cp ../../out/target/product/crespo/obj/EXECUTABLES/lig_intermediates/LINKED/lig releasedir
 cp ../../out/target/product/crespo/obj/EXECUTABLES/lispmanager_intermediates/LINKED/lispmanager releasedir
-cp ../lispmonApp/bin/lispMon.apk releasedir/lispmonApp.apk
+cp ../lispmonApp/bin/classes/lispMon.apk releasedir/lispmonApp.apk
 cp release_install.sh releasedir/install.sh
 cp ../busybox-1.18.4/busybox releasedir
 cp ../../out/target/product/crespo/system.img releasedir

@@ -204,14 +204,13 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
             }
 
             lcaf = (lispd_pkt_lcaf_t *)&(curr_eid->eid_afi);
-            dump_message(lcaf, 128);
             if (lcaf->type != LISP_LCAF_INSTANCE) {
                 log_msg(INFO, "  unknown LCAF type %d in EID", lcaf->type);
                 break;
             }
 
             instance_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
-            instance_lcaf->instance = htonl(223);
+
             if (instance_lcaf->instance != htonl(lispd_config.instance_id)) {
                 log_msg(INFO, "  instance-id %d does no match our configured id %d",
                         ntohl(instance_lcaf->instance), lispd_config.instance_id);
@@ -703,9 +702,7 @@ void send_map_reply(lispd_pkt_map_request_t *pkt,
                nbytes, len);
         return;
     }
-#ifdef DEBUG_PACKETS
-    dump_message(iphdr, len + sizeof(struct ip) + sizeof(struct udphdr));
-#endif
+
     close(s);
     free(iphdr);
     return;
