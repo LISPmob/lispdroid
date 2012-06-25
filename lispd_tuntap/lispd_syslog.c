@@ -99,6 +99,11 @@ void setup_log (void)
     set_log_level(log_level);
 
     if (lispd_config.daemonize) {
+
+        freopen( "/dev/null", "r", stdin);
+        freopen( "/dev/null", "w", stdout);
+        freopen( "/dev/null", "w", stderr);
+
         rotate_logs();
         logfile = freopen(LOGFILE_LOCATION, "w", stderr);
         if (!logfile) {

@@ -462,7 +462,7 @@ void handle_cache_miss(lisp_addr_t eid)
             log_msg(INFO,"handle_cache_miss_msg:couldn't build/send map_request");
         }
         inet_ntop(eid.afi, &eid.address, addrstr, 128);
-        log_msg(INFO, "built and send map request for %s", addrstr);
+        log_msg(INFO, "built and sent map request for %s", addrstr);
     } else {
 #ifdef DEBUG_CACHE_MISS
         log_msg(INFO,"map request already outstanding for this EID");

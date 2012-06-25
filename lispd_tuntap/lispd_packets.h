@@ -22,7 +22,7 @@
 #define LISP_ENCAP_CONTROL_TYPE		8
 #define	LISP_CONTROL_PORT		4342
 #define LISP_DATA_PORT                  4341
-#define LISP_LOCAL_CONTROL_PORT         43420
+#define LISP_LOCAL_CONTROL_PORT         43422
 #define LISP_LOCAL_DATA_PORT            LISP_LOCAL_CONTROL_PORT
 
 /*
@@ -309,7 +309,7 @@ typedef struct lispd_pkt_map_register_t_ {
 
 #ifdef __LITTLE_ENDIAN_BITFIELD
     uint8_t  map_notify:1;
-    uint8_t  mobile_node:1;
+     uint8_t  mobile_node:1;
     uint8_t  reserved3:6;
 #else
     uint8_t  reserved3:6;

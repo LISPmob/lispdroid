@@ -204,12 +204,13 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
             }
 
             lcaf = (lispd_pkt_lcaf_t *)&(curr_eid->eid_afi);
-            if (ntohs(lcaf->afi) != LISP_LCAF_INSTANCE) {
-                log_msg(INFO, "  unknown LCAF type %d in EID", ntohs(lcaf->afi));
+            if (lcaf->type != LISP_LCAF_INSTANCE) {
+                log_msg(INFO, "  unknown LCAF type %d in EID", lcaf->type);
                 break;
             }
 
             instance_lcaf = (lispd_pkt_instance_lcaf_t *)lcaf->address;
+
             if (instance_lcaf->instance != htonl(lispd_config.instance_id)) {
                 log_msg(INFO, "  instance-id %d does no match our configured id %d",
                         ntohl(instance_lcaf->instance), lispd_config.instance_id);
@@ -219,7 +220,7 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
 
             eid_afi = htons(lcaf_addr->afi);
             curr_eid_addr_ptr = (uchar *)&lcaf_addr->address;
-            eid_addr_offset += sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_lcaf_addr_t) +
+            eid_addr_offset += sizeof(lispd_pkt_lcaf_t) +
                     sizeof(lispd_pkt_instance_lcaf_t); // Account for LCAF sizes. EID address sizes accounted below
         } else {
             curr_eid_addr_ptr = (uchar *)&curr_eid->eid_prefix;
@@ -691,23 +692,17 @@ void send_map_reply(lispd_pkt_map_request_t *pkt,
                          0,
                          (struct sockaddr *)&dst,
                          sizeof(struct sockaddr))) < 0) {
-        close(s);
-        free(iphdr);
         log_msg(INFO, "sendto (send_map_request): %s", strerror(errno));
         return;
     }
 
     if (nbytes != (len + sizeof(struct udphdr) + sizeof(struct ip))) {
-        close(s);
-        free(iphdr);
         log_msg(INFO,
                "send_map_request: nbytes (%d) != packet_len (%d)\n",
                nbytes, len);
         return;
     }
-#ifdef DEBUG_PACKETS
-    dump_message(iphdr, len + sizeof(struct ip) + sizeof(struct udphdr));
-#endif
+
     close(s);
     free(iphdr);
     return;

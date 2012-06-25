@@ -98,3 +98,4 @@ typedef struct _lispd_addr_list_t {
 } lispd_addr_list_t;
 
 void dump_info_file(void);
+void die(int);

@@ -17,6 +17,7 @@
 //#include "lispmanager.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 const char *moduleFilename = "/system/modules/lisp.ko";
 const char *moduleName = "lisp";
@@ -25,11 +26,16 @@ const char *moduleInstallCommand = "/system/bin/insmod";
 const char *moduleRemoveCommand = "/system/bin/rmmod";
 const char *killCommand = "/system/bin/kill -15";
 const char *lockFilename = "/sdcard/lispd.lock";
+const char *moduleCheckFilename = "/proc/modules";
+const char *procCheckCommand = "/system/xbin/pgrep -l lispd";
 
 int startDaemon(void)
 {
-    printf("Starting lisp daemon");
-    return(system(daemonCommand));
+    int status;
+    printf("Starting lisp daemon\n");
+    status = system(daemonCommand);
+    printf("\n");
+    return(status);
 }
 
 int stopDaemon(void)
@@ -37,10 +43,13 @@ int stopDaemon(void)
     FILE *lockFile = fopen(lockFilename, "r");
     int pid;
     char killstring[128];
+    int status;
 
     fscanf(lockFile, "%d", &pid);
     sprintf(killstring, "%s %d", killCommand, pid);
-    return(system(killstring));
+    status = system(killstring);
+    printf("\n");
+    return(status);
 }
 
 int installKernelMod(void)
@@ -59,13 +68,59 @@ int removeKernelMod(void)
     return(system(commandstring));
 }
 
+void getStatus(void)
+{
+    FILE *procModFile;
+    FILE *procPipe;
+    char  statusString[128];
+    char found = 0;
+    char status = 0;
+
+    procModFile = fopen(moduleCheckFilename, "r");
+
+    while (!feof(procModFile)) {
+        fread(statusString, 128, 1, procModFile);
+        if (strstr(statusString, "lisp")) {
+            printf("Kernel module: loaded.\n");
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf("Kernel module: not loaded.\n");
+        printf("lispd: not running.\n");
+        status = 2;
+        exit(status);
+    }
+
+    found = 0;
+
+    procPipe = popen(procCheckCommand, "r");
+
+    if (!procPipe) {
+        printf("Failed to execute pgrep.\n");
+        exit(-1);
+    }
+    memset(statusString, 0, 128);
+    fgets(statusString, 128, procPipe);
+    if (strstr(statusString, "lispd")) {
+        printf("lispd: running.\n");
+        exit(status);
+    }
+
+    printf("lispd: not running.\n");
+    status = 1;
+    exit(status);
+}
+
 int main(int argc, char **argv)
 {
 
     if (argc != 2) {
         printf("Usage: \n");
-        printf("lispmanager [start|stop] stops or starts the lispd process\n");
-        printf("lispmanager [install|remove] installs or removes the kernel module");
+        printf("lispmanager [start|stop]: stops or starts the lispd process\n");
+        printf("lispmanager [install|remove]: installs or removes the kernel module\n");
+        printf("lispmanager status: displays lisp process and module status.\n");
         exit(-1);
     }
 
@@ -74,9 +129,11 @@ int main(int argc, char **argv)
     } else if (!strncmp(argv[1], "stop", 4)) {
         exit(stopDaemon());
     } else if (!strncmp(argv[1], "install", 7)) {
-      exit(installKernelMod());
+        exit(installKernelMod());
     } else if (!strncmp(argv[1], "remove", 6)) {
        exit(removeKernelMod());
+    } else if (!strncmp(argv[1], "status", 6)) {
+        getStatus();
     } else {
         exit(-1);
     }

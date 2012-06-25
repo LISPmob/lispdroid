@@ -464,19 +464,23 @@ void signal_handler(int sig) {
         log_msg(WARNING, "Received SIGHUP signal.");
         break;
     case SIGINT:
+        log_msg(WARNING, "Received SIGINT signal.");
     case SIGTERM:
+        log_msg(WARNING, "Received SIGTERM signal");
     case SIGKILL:
-        log_msg(WARNING, "Received SIGTERM signal.");
+        log_msg(WARNING, "Received SIGKILL signal.");
         log_msg(WARNING, "Cleaning up routes...");
         cleanup_routes();
 
         log_msg(WARNING, "Restoring original DNS resolver(s)...");
         restore_dns_servers();
         log_msg(WARNING, "Exiting.");
+        die(0);
         exit(0);
         break;
     default:
         log_msg(WARNING,"Unhandled signal (%d)", sig);
+        die(-1);
         exit(-1);
     }
 }
