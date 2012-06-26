@@ -483,10 +483,8 @@ int main(int argc, char **argv)
     if (!install_map_cache_entries())
         log_msg(INFO, "Could not install static map-cache entries");
 #endif
-    if (!map_register())
-        log_msg(INFO, "Could not map register.");
-
-    set_timer(RLOCProbeScan, RLOC_PROBE_CHECK_INTERVAL);
+    map_register(NULL, NULL);
+    setup_probe_timer();
 
     // Open up the data plane
     // start_tun_recv();

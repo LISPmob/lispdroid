@@ -15,28 +15,26 @@
 
 #define RLOC_PROBE_CHECK_INTERVAL 1 // 1 second
 
-typedef struct {
-    struct timeval register_time;
-    struct timeval request_time;
-    struct timeval rp_time;
-    struct timeval nat_check_time;
-    struct timeval smr_time;
-    struct timeval gw_time;
-} lispd_timers_t;
+typedef struct _timer_links {
+    struct _timer_links *prev;
+    struct _timer_links *next;
+} timer_links;
 
-/*
- * Timer definitions
- */
-typedef enum {
-    MapRegisterSend = 1,
-    MapRequestRetry = 2,
-    NATDetectRetry = 3,
-    RLOCProbeScan = 4,
-    StartSMRs = 5,
-    DefaultGWDetect = 6
-} timer_type_e;
+struct _timer;
+typedef int (*timer_callback)(struct _timer *t, void *arg);
 
-int  init_timers(void);
-void set_timer(timer_type_e, int);
-void stop_timer(timer_type_e);
-void handle_timers(void);
+typedef struct _timer {
+    timer_links     links;
+    int             duration;
+    int             rotation_count;
+    timer_callback  cb;
+    void           *cb_argument;
+    char            name[64];
+} timer;
+
+int      init_timers();
+timer   *create_timer(char *);
+void     start_timer(timer *, int, timer_callback,
+                   void *);
+void     stop_timer(timer *);
+

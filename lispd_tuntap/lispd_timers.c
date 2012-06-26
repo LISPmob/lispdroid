@@ -1,10 +1,11 @@
 /*
  * lispd_timers.c
  *
- * Timer maintenance routines.
+ * Timer maintenance routines. A simple, fixed granularity (1 second)
+ * timer wheel implementation for scalable timers.
  *
  * Author: Chris White
- * Copyright 2010 Cisco Systems, Inc.
+ * Copyright 2012 Cisco Systems, Inc.
  */
 #include <signal.h>
 #include <time.h>
@@ -16,17 +17,25 @@
 #include "lispd_timers.h"
 #include "lispd_netlink.h"
 
-#define TIMER_INTERVAL 1   // Seconds
+const int TimerTickInterval = 1;  // Seconds
+const int WheelSize = 4096;       // Good for a little over an hour
 
-lispd_timers_t timers;
+struct {
+    int      num_spokes;
+    int      current_spoke;
+    timer_links   *spokes;
+    timer_t  tick_timer_id;
+    int      running_timers;
+    int      expirations;
+} timer_wheel;
 
 /*
- * create_timer()
+ * create_timer_wheel()
  *
- * Creates (and starts) a posix timer with the given
- * interval in seconds. Timer will automatically restart.
+ * Creates the timer wheel structure and starts
+ * the rotation timer.
  */
-timer_t create_timer(int seconds)
+timer_t create_wheel_timer(void)
 {
     timer_t tid;
     struct sigevent sev;
@@ -43,10 +52,10 @@ timer_t create_timer(int seconds)
     }
 
     timerspec.it_value.tv_nsec = 0;
-    timerspec.it_value.tv_sec = seconds;
+    timerspec.it_value.tv_sec = TimerTickInterval;
     timerspec.it_interval.tv_nsec = 0;
-    timerspec.it_interval.tv_sec = seconds;
-    log_msg(INFO, "timer %d set for %d seconds",
+    timerspec.it_interval.tv_sec = TimerTickInterval;
+    log_msg(INFO, "Master wheel tick timer %d set for %d seconds",
            tid, timerspec.it_value.tv_sec);
 
     if (timer_settime(tid, 0, &timerspec, NULL) == -1) {
@@ -54,80 +63,138 @@ timer_t create_timer(int seconds)
                tid, strerror(errno));
         return -1;
     }
-
     return(tid);
 }
+
 /*
  * init_timers()
  *
  */
 int init_timers(void)
 {
+    int i = 0;
+    timer_links *spoke;
+
     log_msg(INFO, "Initializing lispd timers...");
 
-    timers.register_time.tv_sec = 0;
-    timers.register_time.tv_usec = 0;
-
-    timers.request_time.tv_sec = 0;
-    timers.request_time.tv_usec = 0;
-
-    timers.rp_time.tv_sec = 0;
-    timers.rp_time.tv_usec = 0;
-
-    timers.nat_check_time.tv_sec = 0;
-    timers.nat_check_time.tv_usec = 0;
-
-    timers.smr_time.tv_sec = 0;
-    timers.smr_time.tv_usec = 0;
-
-    timers.gw_time.tv_sec = 0;
-    timers.gw_time.tv_usec = 0;
-
-    if (create_timer(TIMER_INTERVAL) == -1) {
+    if (create_wheel_timer() == -1) {
         log_msg(INFO, "Failed to set up lispd timers.");
         return(0);
+    }
+
+    timer_wheel.num_spokes = WheelSize;
+    timer_wheel.spokes = (timer_links *)malloc(sizeof(timer_links) * WheelSize);
+    timer_wheel.current_spoke = 0;
+    timer_wheel.running_timers = 0;
+    timer_wheel.expirations = 0;
+
+    spoke = &timer_wheel.spokes[0];
+    for (i = 0; i < WheelSize; i++) {
+        spoke->next = spoke;
+        spoke->prev = spoke;
+
+        log_msg(INFO, "At spoke 0x%x, next: 0x%x, prev: 0x%x",
+                spoke, spoke->next, spoke->prev);
+        spoke++;
     }
     return(1);
 }
 
+/*
+ * create_timer()
+ *
+ * Convenience function to allocate and zero a new timer.
+ */
+timer *create_timer(char *name)
+{
+    timer *new_timer = (timer *)malloc(sizeof(timer));
+    memset(new_timer, 0, sizeof(timer));
+    strncpy(new_timer->name, name, 64);
+    return(new_timer);
+}
 
 /*
- * set_timer()
+ * insert_timer()
  *
- * Sets the given time to go off at the next interval
- * in seconds.
+ * Insert a timer in the wheel at the appropriate location.
  */
-void set_timer(timer_type_e timertype, int seconds)
+void insert_timer(timer *tptr)
 {
-    struct timeval nowtime;
+    timer_links *prev, *spoke;
+    uint32_t pos;
+    uint32_t ticks;
+    uint32_t td;
 
-    gettimeofday(&nowtime, NULL);
-    switch (timertype) {
-    case MapRegisterSend:
-        timers.register_time.tv_sec = nowtime.tv_sec + seconds; // Jitter XXX
-        timers.register_time.tv_usec = 0;
-        break;
-    case MapRequestRetry:
-        timers.request_time.tv_sec = nowtime.tv_sec + seconds;
-        timers.request_time.tv_usec = 0;
-        break;
-    case RLOCProbeScan:
-        timers.rp_time.tv_sec = nowtime.tv_sec + seconds;
-        timers.rp_time.tv_usec = 0;
-        break;
-    case NATDetectRetry:
-        timers.nat_check_time.tv_sec = nowtime.tv_sec + seconds;
-        timers.nat_check_time.tv_usec = 0;
-        break;
-    case StartSMRs:
-        timers.smr_time.tv_sec = nowtime.tv_sec + seconds;
-        timers.smr_time.tv_usec = 0;
-        break;
-    case DefaultGWDetect:
-        timers.gw_time.tv_sec = nowtime.tv_sec + seconds;
-        timers.gw_time.tv_usec = 0;
-        break;
+    // Number of ticks for this timer.
+    ticks = tptr->duration;
+
+     /*
+      * tick posisiton, referenced from the
+      * current index.
+      */
+     td = (ticks % timer_wheel.num_spokes);
+
+     /*
+      * Full rotations required before this timer expires
+      */
+     tptr->rotation_count = (ticks / timer_wheel.num_spokes);
+
+     /*
+      * Find the right spoke
+      */
+     pos = ((timer_wheel.current_spoke + td) % timer_wheel.num_spokes);
+     spoke = &timer_wheel.spokes[pos];
+
+     /*
+      * Link the timer into the list at this position
+      */
+
+     prev = spoke->prev;
+     tptr->links.next = spoke;      /* append to end of spoke  */
+     tptr->links.prev = prev;
+     prev->next   = (timer_links *)tptr;
+     spoke->prev = (timer_links *)tptr;
+     return;
+}
+
+/*
+ * start_timer()
+ *
+ * Starts a new timer with given expiration time, callback function,
+ * and arguments. Returns a pointer to the new timer, which must be kept
+ * to stop the timer later if desired.
+ */
+void start_timer(timer *tptr, int seconds_to_expiry, timer_callback cb,
+                 void *cb_arg)
+{
+    timer_links *next, *prev;
+
+    /*
+     * See if this timer is also running.
+     */
+    next = tptr->links.next;
+
+    if (next) {
+        prev = tptr->links.prev;
+        next->prev = prev;
+        prev->next = next;
+
+        /*
+         * Update stats
+         */
+        timer_wheel.running_timers--;
     }
+
+    /*
+     * Hook up the callback
+     */
+    tptr->cb      = cb;
+    tptr->cb_argument     = cb_arg;
+    tptr->duration = seconds_to_expiry;
+    insert_timer(tptr);
+
+    timer_wheel.running_timers++;
+    return;
 }
 
 /*
@@ -135,71 +202,72 @@ void set_timer(timer_type_e timertype, int seconds)
  *
  * Mark one of the global timers as stopped.
  */
-void stop_timer(timer_type_e timertype)
+void stop_timer(timer *tptr)
 {
-    switch (timertype) {
-    case MapRegisterSend:
-        timers.register_time.tv_sec = 0;
-        timers.register_time.tv_usec = 0;
-        break;
-    case MapRequestRetry:
-        timers.request_time.tv_sec = 0;
-        timers.request_time.tv_usec = 0;
-        break;
-    case RLOCProbeScan:
-        timers.rp_time.tv_sec = 0;
-        timers.rp_time.tv_usec = 0;
-        break;
-    case NATDetectRetry:
-        timers.nat_check_time.tv_sec = 0;
-        timers.nat_check_time.tv_usec = 0;
-        break;
-    case StartSMRs:
-        timers.smr_time.tv_sec = 0;
-        timers.smr_time.tv_usec = 0;
-        break;
-    case DefaultGWDetect:
-        timers.gw_time.tv_sec = 0;
-        timers.gw_time.tv_usec = 0;
+    timer_links *next, *prev;
+
+    if (tptr == NULL) {
+        return;
     }
- }
+
+    next = tptr->links.next;
+    if (next) {
+           prev = tptr->links.prev;
+           next->prev = prev;
+           prev->next = next;
+           tptr->links.next = NULL;
+           tptr->links.prev = NULL;
+
+           /*
+            * Update stats
+            */
+           timer_wheel.running_timers--;
+       }
+}
 
 /*
  * handle_timers()
  *
- * Check to see if any of the lisp timers have expired.
- * If so, call the appropriate function to deal with it.
+ * Update the wheel index, and expire any timers there, calling
+ * the appropriate function to deal with it.
  */
 void handle_timers(void)
 {
-    struct timeval nowtime;
-
+    struct timeval  nowtime;
+    timer_links    *current_spoke, *next, *prev;
+    timer          *tptr;
+    timer_callback  callback;
     gettimeofday(&nowtime, NULL);
 
-    if (timercmp(&nowtime, &timers.register_time, >) && (timers.register_time.tv_sec != 0)) {
-        log_msg(INFO, "Map-register timer expired");
-        map_register();
+    timer_wheel.current_spoke = (timer_wheel.current_spoke + 1) % timer_wheel.num_spokes;
+    current_spoke = &timer_wheel.spokes[timer_wheel.current_spoke];
+
+    log_msg(INFO, "Wheel tick, checking for expired timers...");
+    tptr = (timer *)current_spoke->next;
+    while ( (timer_links *)tptr != current_spoke) {
+        next = tptr->links.next;
+        prev = tptr->links.prev;
+
+        if (tptr->rotation_count > 0) {
+            tptr->rotation_count--;
+        } else {
+
+            prev->next = next;
+            next->prev = prev;
+            tptr->links.next = NULL;
+            tptr->links.prev = NULL;
+
+            // Update stats
+            timer_wheel.running_timers--;
+            timer_wheel.expirations++;
+
+            log_msg(INFO, "Expiring timer %s", tptr->name);
+            callback = tptr->cb;
+            (*callback)(tptr, tptr->cb_argument);
+        }
+        tptr = next;
     }
 
-    if (timercmp(&nowtime, &timers.request_time, >) && (timers.request_time.tv_sec != 0)) {
-        log_msg(INFO, "Check for map request retries");
-        retry_map_requests();
-    }
-
-    if (timercmp(&nowtime, &timers.rp_time, >) && (timers.rp_time.tv_sec != 0)) {
-        issue_rloc_probes();
-    }
-
-    if (timercmp(&nowtime, &timers.nat_check_time, >) && (timers.nat_check_time.tv_sec != 0)) {
-        check_nat_status();
-    }
-
-    if (timercmp(&nowtime, &timers.smr_time, >) && (timers.smr_time.tv_sec != 0)) {
-      //  start_smr_traffic_monitor();
-    }
-
-    if (timercmp(&nowtime, &timers.gw_time, >) && (timers.gw_time.tv_sec != 0)) {
-        check_default_gateway();
-    }
-    return;
+    log_msg(INFO, "There are %d active timers and have been %d expirations",
+            timer_wheel.running_timers, timer_wheel.expirations);
 }

@@ -28,6 +28,9 @@ struct sockaddr_nl dst_addr, src_addr;
 lispd_if_t *if_list = NULL;
 lispd_if_t *primary_interface = NULL;
 
+timer *default_gw_check_timer = NULL;
+timer *nat_detect_retry_timer = NULL;
+
 /*
  * is_nat_complete()
  *
@@ -429,6 +432,13 @@ void reconfigure_lisp_interfaces(void)
 {
     primary_interface = get_best_interface();
 
+    /*
+     * Earliest opportunity to create this timer. Move to an
+     * init function? XXX
+     */
+    if (!nat_detect_retry_timer) {
+        nat_detect_retry_timer = create_timer("NAT Detect");
+    }
     if (primary_interface == NULL) {
         log_msg(INFO, "No active interfaces");
         return;
@@ -449,9 +459,13 @@ void reconfigure_lisp_interfaces(void)
     /*
      * Always check to see if we need to reset default routes
      */
-    check_default_gateway();
+    check_default_gateway(default_gw_check_timer, NULL);
 
-    set_timer(DefaultGWDetect, GATEWAY_DETECT_TIME); // Check again in a second to wait for dhcp
+    if (!default_gw_check_timer) {
+        default_gw_check_timer = create_timer("GW Check");
+    }
+    start_timer(default_gw_check_timer, GATEWAY_DETECT_TIME,
+                check_default_gateway, NULL);
 }
 
 /*
@@ -460,13 +474,13 @@ void reconfigure_lisp_interfaces(void)
  * Detect if the default gateway has changed. If so, update our
  * special routes.
  */
-void check_default_gateway(void)
+void check_default_gateway(timer *t, void *arg)
 {
     if (primary_interface && get_current_default_gw(primary_interface)) {
         install_default_routes(primary_interface, FALSE);
         update_map_server_routes();
     }
-    stop_timer(DefaultGWDetect);
+    stop_timer(t);
 }
 
 /*
@@ -584,7 +598,7 @@ void handle_if_status_change(struct ifinfomsg *ifi)
      * Update our mappings
      */
     install_database_mappings();
-    map_register();
+    map_register(NULL, NULL);
 }
 
 /*
@@ -633,7 +647,7 @@ void handle_ip_address_change(struct ifaddrmsg *ifa, uint32_t addr)
      * Update our mappings
      */
     install_database_mappings();
-    map_register();
+    map_register(NULL, NULL);
 }
 
 /*
@@ -1491,7 +1505,8 @@ int setup_nat(lispd_if_t *intf)
     }
 
     if (!is_nat_complete(intf)) {
-        set_timer(NATDetectRetry, NAT_QUICK_CHECK_TIME);
+        start_timer(nat_detect_retry_timer, NAT_QUICK_CHECK_TIME, check_nat_status,
+                    NULL);
         send_lisp_echo_request(intf);
         log_msg(INFO, "NAT enabled, determining global address...");
     } else {
@@ -1545,7 +1560,7 @@ void update_map_server_routes(void)
  * To fix: make per interface timers or flags for
  * this process XXX
  */
-void check_nat_status(void)
+void check_nat_status(timer *t, void *arg)
 {
     lispd_if_t *intf = if_list;
     char requests_out = FALSE;
@@ -1563,11 +1578,13 @@ void check_nat_status(void)
         intf = intf->next_if;
     }
     if (requests_out) {
-        set_timer(NATDetectRetry, NAT_QUICK_CHECK_TIME);
+        start_timer(nat_detect_retry_timer, NAT_QUICK_CHECK_TIME,  check_nat_status,
+                    NULL);
     } else {
         log_msg(INFO, "Starting periodic NAT detection timer.");
-        stop_timer(NATDetectRetry);
-        set_timer(NATDetectRetry, NAT_PERIODIC_CHECK_TIME);
+        stop_timer(nat_detect_retry_timer);
+        start_timer(nat_detect_retry_timer, NAT_PERIODIC_CHECK_TIME,  check_nat_status,
+                    NULL);
     }
 }
 
@@ -1732,19 +1749,22 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
                     if (is_nat_complete(intf) && (get_live_interface_count() == 1)) {
                         reconfigure_lisp_interfaces();
                         install_database_mappings();
-                        map_register();
-                        set_timer(NATDetectRetry, NAT_PERIODIC_CHECK_TIME);
+                        map_register(NULL, NULL);
+                        start_timer(nat_detect_retry_timer, NAT_PERIODIC_CHECK_TIME,  check_nat_status,
+                                    NULL);
                     } else {
 
                         // Keep trying at a fast rate until complete.
-                        set_timer(NATDetectRetry, NAT_QUICK_CHECK_TIME);
+                        start_timer(nat_detect_retry_timer, NAT_QUICK_CHECK_TIME,  check_nat_status,
+                                    NULL);
                     }
 
                     return(TRUE);
                 } else {
 
                     log_msg(INFO, "     Address unchanged or interface not-NAT");
-                    set_timer(NATDetectRetry, NAT_PERIODIC_CHECK_TIME);
+                    start_timer(nat_detect_retry_timer, NAT_PERIODIC_CHECK_TIME,  check_nat_status,
+                                NULL);
                     return(TRUE);
                 }
             }
@@ -1753,7 +1773,7 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
         /*
          * Recheck default gateway
          */
-        check_default_gateway();
+        check_default_gateway(NULL, NULL);
         intf = intf->next_if;
     }
     log_msg(INFO, "No matching incomplete NAT interface found (normal with NAT traversal 2nd echo)");

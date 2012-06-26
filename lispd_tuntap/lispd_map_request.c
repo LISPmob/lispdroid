@@ -18,6 +18,10 @@
 
 extern int v4_receive_fd;
 
+timer *rloc_probe_timer = NULL;
+timer *map_request_retry_timer = NULL;
+timer *start_smr_timer = NULL;
+
 /*
  *	Send a map-request
  *
@@ -510,7 +514,11 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
     }
 
     // Start the timer if it's not already running
-    set_timer(MapRequestRetry, REQUEST_INTERVAL);
+    if (!map_request_retry_timer) {
+        map_request_retry_timer = create_timer("Map Request retry");
+    }
+    start_timer(map_request_retry_timer, REQUEST_INTERVAL,  &retry_map_requests,
+                NULL);
     return(nonce);
 }
 
@@ -727,7 +735,7 @@ void handle_incoming_smr(lispd_pkt_map_request_t *pkt,
  * Run through the request cache and send map requests for any
  * elements that still remain.
  */
-void retry_map_requests(void)
+void retry_map_requests(timer *tptr, void *arg)
 {
     datacache_elt_t *elt;
     struct timeval   nowtime;
@@ -776,7 +784,7 @@ void retry_map_requests(void)
     }
 
     if (datacache->head == NULL) {
-        stop_timer(MapRequestRetry);
+        stop_timer(map_request_retry_timer);
     }
     return;    
 }
@@ -845,7 +853,7 @@ void process_map_request(lispd_pkt_map_request_t *pkt,
  * for expired (non-responsive) entries, and send out any that
  * are still outstanding.
  */
-void issue_rloc_probes(void)
+void issue_rloc_probes(timer *probe_timer, void *arg)
 {
     rloc_probe_item_t *iterator = get_rp_queue_head();
     rloc_probe_rloc_t *rloc;
@@ -855,6 +863,7 @@ void issue_rloc_probes(void)
     char addr_str[128];
     char addr_str2[128];
 
+    log_msg(INFO, "In issue_rloc_probes()");
     while (iterator) {
 
         /*
@@ -904,6 +913,22 @@ void issue_rloc_probes(void)
         }
         iterator = iterator->next;
     }
+
+    // Restart the timer
+    start_timer(rloc_probe_timer, RLOC_PROBE_CHECK_INTERVAL,
+                 issue_rloc_probes, NULL);
+}
+
+/*
+ * setup_probe_timer()
+ *
+ * Create and start the RLOC probe timer
+ */
+void setup_probe_timer()
+{
+    rloc_probe_timer = create_timer("RLOC Probe");
+    start_timer(rloc_probe_timer, RLOC_PROBE_CHECK_INTERVAL,
+                 issue_rloc_probes, NULL);
 }
 
 /*
@@ -916,10 +941,15 @@ void issue_rloc_probes(void)
  */
 void schedule_solicit_map_requests(void)
 {
-    stop_timer(StartSMRs);
+    if (start_smr_timer) {
+        stop_timer(start_smr_timer);
+    } else {
+        start_smr_timer = create_timer("SMR");
+    }
 
     log_msg(INFO, "Schedule start of SMR process in %d seconds", SMR_HOLDOFF_TIME);
-    set_timer(StartSMRs, SMR_HOLDOFF_TIME);
+    start_timer(start_smr_timer, SMR_HOLDOFF_TIME,  &start_smr_traffic_monitor,
+                NULL);
 }
 
 /*
@@ -944,3 +974,5 @@ uint8_t *decapsulate_ecm_packet(uint8_t *packet)
 
     return(inner_header);
 }
+
+

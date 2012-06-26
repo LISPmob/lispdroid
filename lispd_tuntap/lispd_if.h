@@ -17,6 +17,7 @@
 #include "lispd.h"
 #include "lispd_config.h"
 #include "lispd_packets.h"
+#include "lispd_timers.h"
 
 #define IF_MSG_SIZE 4096
 #define NAT_QUICK_CHECK_TIME 5 // retry every five seconds if we are detecting NAT and haven't heard
@@ -86,8 +87,8 @@ void update_map_server_routes(void);
 int send_lisp_echo_request(lispd_if_t *intf);
 int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport);
 inline int is_nat_complete(lispd_if_t *intf);
-void check_nat_status(void);
-void check_default_gateway(void);
+void check_nat_status(timer *, void *);
+void check_default_gateway(timer *, void *);
 void cleanup_routes(void);
 
 

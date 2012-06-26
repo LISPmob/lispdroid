@@ -14,6 +14,7 @@
 
 #include "lispd_db.h"
 #include "lisp_ipc.h"
+#include "lispd_timers.h"
 
 int process_kernel_msg(void);
 int setup_netlink(void);
@@ -26,4 +27,4 @@ int install_database_mappings(void);
 int set_udp_ports(void);
 int update_locator_status(rloc_probe_item_t *item);
 void clear_map_cache(void);
-int start_smr_traffic_monitor();
+void start_smr_traffic_monitor(timer *, void *);

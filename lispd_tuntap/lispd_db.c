@@ -395,7 +395,7 @@ void schedule_smr(lisp_cache_sample_msg_t *msg)
     /*
      * Build a data cache entry (request-list queue)
      * for each address in the list. These will not
-     * be send immediately like other map-requests,
+     * be sent immediately like other map-requests,
      * but will depend on the regular map-request check
      * interval timer.
      */
@@ -406,6 +406,5 @@ void schedule_smr(lisp_cache_sample_msg_t *msg)
                               SMR);
     }
 
-    // Start the request timer if it's not running
-    set_timer(MapRequestRetry, REQUEST_INTERVAL);
+    schedule_map_requests();
 }

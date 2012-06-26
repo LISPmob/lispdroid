@@ -25,3 +25,5 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
 void process_map_request(lispd_pkt_map_request_t *pkt,
                          struct sockaddr_in *sa);
 void schedule_solicit_map_requests(void);
+void setup_probe_timer(void);
+void schedule_map_requests(void);
