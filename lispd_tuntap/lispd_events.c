@@ -30,7 +30,7 @@ int	v4_receive_fd			= 0;
 int	netlink_fd			= 0;
 int     signal_fd                       = 0;
 int     rtnetlink_fd                    = 0;
-int     tun_receive_fd                  = 0;
+extern int     tun_receive_fd;
 int     data_receive_fd                 = 0;
 fd_set  readfds;
 

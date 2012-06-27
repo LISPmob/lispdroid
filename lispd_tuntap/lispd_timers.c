@@ -92,9 +92,6 @@ int init_timers(void)
     for (i = 0; i < WheelSize; i++) {
         spoke->next = spoke;
         spoke->prev = spoke;
-
-        log_msg(INFO, "At spoke 0x%x, next: 0x%x, prev: 0x%x",
-                spoke, spoke->next, spoke->prev);
         spoke++;
     }
     return(1);
