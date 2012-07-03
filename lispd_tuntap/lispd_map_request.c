@@ -863,7 +863,6 @@ void issue_rloc_probes(timer *probe_timer, void *arg)
     char addr_str[128];
     char addr_str2[128];
 
-    log_msg(INFO, "In issue_rloc_probes()");
     while (iterator) {
 
         /*

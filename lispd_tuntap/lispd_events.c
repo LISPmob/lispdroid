@@ -18,6 +18,7 @@
 #include "lispd_netlink.h"
 #include "lispd_map_reply.h"
 #include "lispd_timers.h"
+#include "lispd_tuntap.h"
 #include "packettypes.h"
 
 static int signal_pipe[2]; // We don't have signalfd in bionic, fake it.
@@ -30,7 +31,6 @@ int	v4_receive_fd			= 0;
 int	netlink_fd			= 0;
 int     signal_fd                       = 0;
 int     rtnetlink_fd                    = 0;
-extern int     tun_receive_fd;
 int     data_receive_fd                 = 0;
 fd_set  readfds;
 
@@ -148,7 +148,7 @@ int build_receive_sockets(void)
      * build the v4 data packet receive socket.
      */
     /*
-     *  build the v4_receive_fd, and make the port reusable
+     *  build the data_receive_fd, and make the port reusable
      */
     if ((data_receive_fd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) < 0) {
         log_msg(ERROR, "socket (v4): %s", strerror(errno));
@@ -276,33 +276,6 @@ int process_event_signal(void)
 }
 
 /*
- * process_output_packet
- *
- * Process an output packet, possibly destined for encapsulation.
- */
-void process_output_packet(void)
-{
-    char rcvbuf[2048];
-    int nread;
-
-    log_msg(INFO, "In process_output_packet()");
-    nread = read(tun_receive_fd, rcvbuf, 2048);
-    lisp_output4(rcvbuf, nread);
-}
-
-/*
- * process_input_packet
- *
- * Quick and dirty decapsulator for testing
- */
-void process_input_packet(char *packet_buf, int length)
-{
-    log_msg(INFO, "Hey I got an input packet!");
-
-    write(tun_receive_fd, packet_buf + sizeof(struct lisphdr), length - sizeof(struct lisphdr));
-}
-
-/*
  *	Retrieve a mesage from socket s
  */
 int retrieve_lisp_msg(int s, uint8_t *packet, void *from, int afi)
@@ -345,9 +318,12 @@ int retrieve_lisp_msg(int s, uint8_t *packet, void *from, int afi)
         return(0);
     }
 
-    // HACK!
+    // HACK! xxx This is here instead of in a thread in lispd_tuntap.c
+    // because the current NAT traversal scheme shares the data and control
+    // ports and we have no way of listening to the data port separately. This
+    // also assumes v6 over v4 for now.
     if ((ntohs(s4->sin_port) == LISP_DATA_PORT) && (((lispd_pkt_encapsulated_control_t *) packet)->type == LISP_ENCAP_CONTROL_TYPE)) {
-        process_input_packet(packet, recv_len);
+        tuntap_process_input_packet(packet, recv_len, from);
         return(1);
     }
 
@@ -450,7 +426,7 @@ void event_loop(void)
             process_interface_notification();
         }
         if (FD_ISSET(tun_receive_fd, &readfds)) {
-            process_output_packet();
+            tuntap_process_output_packet();
         }
        // if (FD_ISSET(data_receive_fd, &readfds)) {
        //     process_input_packet(NULL, 0);

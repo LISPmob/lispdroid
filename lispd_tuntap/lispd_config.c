@@ -15,6 +15,7 @@
 #include "lispd_config.h"
 #include "lispd_util.h"
 #include "lispd_if.h"
+#include "lispd_tuntap.h"
 
 lispd_config_t lispd_config;
 
@@ -113,6 +114,7 @@ int handle_lispd_config_file(void)
         CFG_STR("override-dns-primary",         0, CFGF_NONE),
         CFG_STR("override-dns-secondary",       0, CFGF_NONE),
         CFG_STR("instance-id",                 0, CFGF_NONE),
+        CFG_INT("tun-mtu", TUN_OVERRIDE_MTU, CFGF_NONE),
 	CFG_END()
     };
 
@@ -135,6 +137,8 @@ int handle_lispd_config_file(void)
     /*
      *	lispd config options
      */
+    if ((ret = cfg_getint(cfg, "tun-mtu")))
+        lispd_config.tun_mtu = ret;
     if ((ret = cfg_getint(cfg, "map-request-retries")))
         lispd_config.map_request_retries = ret;
     if ((ret = cfg_getint(cfg, "rloc-probe-retries")))

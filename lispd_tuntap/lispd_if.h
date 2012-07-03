@@ -24,7 +24,7 @@
 #define NAT_PERIODIC_CHECK_TIME 60 // check for address change every minute
 #define GATEWAY_DETECT_TIME 1
 
-#define OVERRIDE_MTU 1400 // Override the mtu on any interface we are configured on.
+#define OVERRIDE_MTU 1500 // Override the mtu on any interface we are configured on.
 
 /*
  * Different from lispd_if_t to maintain

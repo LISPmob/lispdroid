@@ -53,6 +53,7 @@ typedef struct {
     unsigned int             instance_id;
     char                     use_instance_id;
     char                     use_location;
+    unsigned int             tun_mtu;         /* MTU Override for TUN/TAP */
 } lispd_config_t;
 
 extern lispd_config_t lispd_config;

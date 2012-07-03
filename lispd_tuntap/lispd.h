@@ -32,9 +32,7 @@
 #include <sys/ioctl.h>
 #include <syslog.h>
 #include <sys/param.h>
-#include <sys/socket.h>
 #include <time.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include "lisp_ipc.h"
 #include "linux/netlink.h"

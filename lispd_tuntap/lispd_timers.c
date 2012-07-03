@@ -239,7 +239,6 @@ void handle_timers(void)
     timer_wheel.current_spoke = (timer_wheel.current_spoke + 1) % timer_wheel.num_spokes;
     current_spoke = &timer_wheel.spokes[timer_wheel.current_spoke];
 
-    log_msg(INFO, "Wheel tick, checking for expired timers...");
     tptr = (timer *)current_spoke->next;
     while ( (timer_links *)tptr != current_spoke) {
         next = tptr->links.next;
@@ -258,13 +257,9 @@ void handle_timers(void)
             timer_wheel.running_timers--;
             timer_wheel.expirations++;
 
-            log_msg(INFO, "Expiring timer %s", tptr->name);
             callback = tptr->cb;
             (*callback)(tptr, tptr->cb_argument);
         }
         tptr = next;
     }
-
-    log_msg(INFO, "There are %d active timers and have been %d expirations",
-            timer_wheel.running_timers, timer_wheel.expirations);
 }

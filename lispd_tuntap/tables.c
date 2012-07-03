@@ -291,7 +291,7 @@ int lookup_eid_db_v6_exact(lisp_addr_t eid_prefix, int prefixlen, lisp_database_
  *
  * Called when the timer associated with an EID entry expires.
  */
-void eid_entry_expiration(unsigned long arg)
+void eid_entry_expiration(timer *t, void *arg)
 {
   lisp_map_cache_t *entry = (lisp_map_cache_t *)arg;
   
@@ -305,18 +305,18 @@ void eid_entry_expiration(unsigned long arg)
  * Called when the sampling timer expires, send a sample
  * of the EID cache entry to lispd.
  */
-void eid_entry_probe_sample(unsigned long arg)
+void eid_entry_probe_sample(timer *t, void *arg)
 {
     lisp_map_cache_t *entry = (lisp_map_cache_t *)arg;
 
     // XXX Replace with mutex spin_lock_bh(&table_lock);
     log_msg(INFO,  "Sending sample of EID %pi4 for probe", &entry->eid_prefix.address.ip.s_addr);
-   // send_cache_sample_notification(entry, ProbeSample);
+    //send_cache_sample_notification(entry, ProbeSample);
 
     /*
      * Restart the timer
      */
-   // XXX Reaplce with user space timer method mod_timer(&entry->probe_timer, jiffies + entry->sampling_interval * HZ);
+    start_timer(t, entry->sampling_interval, entry->sampling_interval, arg);
     // XXX Replace with mutex spin_unlock_bh(&table_lock);
     return;
 }
@@ -327,7 +327,7 @@ void eid_entry_probe_sample(unsigned long arg)
  * Called when the sampling timer expires, send a sample
  * of the EID cache entry to lispd.
  */
-void eid_entry_smr_sample(unsigned long arg)
+void eid_entry_smr_sample(timer *t, void *arg)
 {
     lisp_map_cache_t *entry = (lisp_map_cache_t *)arg;
 
@@ -756,10 +756,7 @@ void add_eid_cache_entry(lisp_eid_map_msg_t *entry)
        * If not static, start the expiration timers, and set up the smr timer.
        */
       if (map_entry->how_learned) {
-   //    XXX   setup_timer(&map_entry->expiry_timer, &eid_entry_expiration, (unsigned long)map_entry);
-   //    XXX   mod_timer(&map_entry->expiry_timer, jiffies + entry->ttl * HZ * SECS_PER_MIN);
-
-   //    XXX   setup_timer(&map_entry->smr_timer, &eid_entry_smr_sample, (unsigned long)map_entry);
+          start_timer(&map_entry->expiry_timer, entry->ttl * SECS_PER_MIN, eid_entry_expiration, (void *)map_entry);
           // Jitter XXX
       } else {
           log_msg(INFO,  "Not starting expiration timer.");
@@ -769,9 +766,8 @@ void add_eid_cache_entry(lisp_eid_map_msg_t *entry)
       * Start the sampling timer
       */
       if (entry->sampling_interval) {
-       //   setup_timer(&map_entry->probe_timer, &eid_entry_probe_sample, (unsigned long)map_entry);
-       //   mod_timer(&map_entry->probe_timer, jiffies + entry->sampling_interval * HZ);
-       //   log_msg(INFO,  " Started probe sampling timer at %d second interval", entry->sampling_interval);
+          start_timer(&map_entry->probe_timer, entry->sampling_interval, &eid_entry_probe_sample, (void *)map_entry);
+          log_msg(INFO,  " Started probe sampling timer at %d second interval", entry->sampling_interval);
       }
       gettimeofday(&timestamp, NULL);
       map_entry->timestamp               = timestamp.tv_sec;
@@ -1113,13 +1109,13 @@ void start_traffic_monitor(void)
     PATRICIA_WALK(AF4_eid_cache->head, node) {
         entry = (lisp_map_cache_t *)node->data;
         entry->active_within_period = 0;
-   // XXX Replace with user space timer     mod_timer(&entry->smr_timer, jiffies + TRAFFIC_MON_PERIOD * HZ);
+        start_timer(&entry->smr_timer, TRAFFIC_MON_PERIOD, eid_entry_smr_sample, entry);
     } PATRICIA_WALK_END;
 
     PATRICIA_WALK(AF6_eid_cache->head, node) {
         entry = (lisp_map_cache_t *)node->data;
         entry->active_within_period = 0;
-    // XXX Replace with user space timer    mod_timer(&entry->smr_timer, jiffies + TRAFFIC_MON_PERIOD * HZ);
+        start_timer(&entry->smr_timer, TRAFFIC_MON_PERIOD, eid_entry_smr_sample, entry);
     } PATRICIA_WALK_END;
 
     log_msg(INFO,  "Marked cache entries for traffic monitoring.");

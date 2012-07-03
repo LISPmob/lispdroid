@@ -18,14 +18,18 @@
 #include "lispd.h"
 #include "lispd_config.h"
 #include "lispd_encap.h"
+#include "lispd_decap.h"
 #include "lispd_tuntap.h"
+#include "packettypes.h"
 
 const char *Tundev = "lisp_tun";
 const unsigned int TunReceiveSize = 2048; // Should probably tune to match largest MTU
 int tun_receive_fd = 0;
 int tun_ifindex = 0;
+char *tun_receive_buf = NULL;
 
-int create_tun() {
+int tuntap_set_eids(void);
+int tuntap_create_tun() {
 
     struct ifreq ifr;
     int err, tmpsocket, flags = IFF_TUN | IFF_NO_PI;
@@ -42,7 +46,7 @@ int create_tun() {
     /* open the clone device */
     if( (tun_receive_fd = open(clonedev, O_RDWR)) < 0 ) {
         log_msg(INFO, "TUN/TAP: Failed to open clone device");
-        return -1;
+        return(FALSE);
     }
 
     memset(&ifr, 0, sizeof(ifr));
@@ -54,42 +58,98 @@ int create_tun() {
     if ( (err = ioctl(tun_receive_fd, TUNSETIFF, (void *) &ifr)) < 0 ) {
         close(tun_receive_fd);
         log_msg(INFO, "TUN/TAP: Failed to create tunnel interface, errno: %d.", errno);
-        return err;
+        return(FALSE);
     }
 
     // get the ifindex for the tun/tap
-    tmpsocket = socket(AF_UNIX, SOCK_DGRAM, 0); // Dummy socket for the ioctl, type/details unimportant
-    if ( (err = ioctl(tmpsocket, SIOCGIFINDEX, (void *)&ifr)) < 0 ) {
+    tmpsocket = socket(AF_INET, SOCK_DGRAM, 0); // Dummy socket for the ioctl, type/details unimportant
+    if ((err = ioctl(tmpsocket, SIOCGIFINDEX, (void *)&ifr)) < 0) {
         close(tun_receive_fd);
         close(tmpsocket);
         log_msg(INFO, "TUN/TAP: unable to determine ifindex for tunnel interface, errno: %d.", errno);
-        return err;
+        return(FALSE);
     } else {
         log_msg(INFO, "TUN/TAP ifindex is: %d", ifr.ifr_ifindex);
         tun_ifindex = ifr.ifr_ifindex;
+
+        // Set the MTU to the configured MTU
+        ifr.ifr_ifru.ifru_mtu = lispd_config.tun_mtu;
+        if ((err = ioctl(tmpsocket, SIOCSIFMTU, &ifr)) < 0) {
+            close(tmpsocket);
+            log_msg(INFO, "TUN/TAP: unable to set interface MTU to %d, errno: %d.",
+                    lispd_config.tun_mtu, errno);
+            return(FALSE);
+        } else {
+            log_msg(INFO, "TUN/TAP mtu set to %d", lispd_config.tun_mtu);
+        }
     }
 
     close(tmpsocket);
 
+    tun_receive_buf = (char *)malloc(TunReceiveSize);
     /* this is the special file descriptor that the caller will use to talk
      * with the virtual interface */
     log_msg(INFO, "tunnel fd at creation is %d", tun_receive_fd);
-    return tun_receive_fd;
-}
 
-void *tun_recv(void *arg)
-{
-    char *rcvbuf;
-    int   nread;
-
-    rcvbuf = malloc(TunReceiveSize);
-    while (1) {
-        nread = read(tun_receive_fd, rcvbuf, TunReceiveSize);
-        lisp_output4(rcvbuf, nread);
+    if (!tuntap_set_eids()) {
+        return(FALSE);
     }
+
+    if (!tuntap_install_default_routes()) {
+        return(FALSE);
+    }
+    return(TRUE);
 }
 
-void start_tun_recv()
+/*
+ * tun_recv()
+ *
+ * Somewhat paradoxically, this handles *outgoing* packets (a read from the tunnel
+ * amounts to receiving packets from the TCP/IP stack that are locally originated).
+ *
+ * Send the packet to the encapsulation routines.
+ */
+static void *tun_recv(void *arg)
+{
+    while (1) {
+       tuntap_process_output_packet();
+    }
+    return NULL;
+}
+
+/*
+ * tuntap_process_input_packet()
+ *
+ * Handle a data packet received on the LISP data port. Decapsulate,
+ * then inject into the tunnel so that the TCP/IP stack can continue
+ * processing.
+ */
+void tuntap_process_input_packet(char *packet_buf, int length, void *source)
+{
+    lisp_input(packet_buf, length, source);
+}
+
+/*
+ * tuntap_process_output_packet
+ *
+ * Process an output packet, possibly destined for encapsulation.
+ */
+void tuntap_process_output_packet(void)
+{
+    int nread;
+
+    log_msg(INFO, "In process_output_packet()");
+    nread = read(tun_receive_fd, tun_receive_buf, TunReceiveSize);
+    lisp_output4(tun_receive_buf, nread);
+}
+
+/*
+ * tuntap_start_tun_recv()
+ *
+ * Create a thread to receive packets (remember, OUTGOING packets)
+ * on the tunnel.
+ */
+void tuntap_start_tun_recv(void)
 {
     pthread_t receiver_thread;
 
@@ -106,7 +166,7 @@ void start_tun_recv()
  *
  * Set up the default route through the tunnel for ipv4.
  */
-int install_default_route_v4(void)
+static int install_default_route_v4(void)
 {
     struct nlmsghdr *nlh;
     struct rtmsg    *rtm;
@@ -188,7 +248,7 @@ int install_default_route_v4(void)
  * This is done to override any changes that DHCP might make
  * out from under us.
  */
-int delete_default_route_v4 (void)
+static int delete_default_route_v4 (void)
 {
     struct nlmsghdr *nlh;
     struct rtmsg    *rtm;
@@ -331,7 +391,13 @@ static int install_default_route_v6(void)
     return(TRUE);
 }
 
-int install_default_routes(void) {
+/*
+ * tuntap_install_default_routes
+ *
+ * Create default routes through the TUN interface
+ * for all address families.
+ */
+int tuntap_install_default_routes(void) {
 
     if (lispd_config.eid_address_v4.afi) {
         if (!delete_default_route_v4()) {
@@ -350,18 +416,18 @@ int install_default_routes(void) {
 }
 
 /*
- * assign_eid()
+ * tuntap_set_eid()
  *
  * Assign an EID to the TUN/TAP interface
  */
-int set_tuntap_eid(lisp_addr_t *addr)
+int tuntap_set_eids(void)
 {
     struct ifreq ifr;
     struct sockaddr_in *sp;
-    int    netsock;
+    int    netsock, err;
 
-    if (addr->afi == AF_INET) {
-        netsock = socket(addr->afi, SOCK_DGRAM, 0);
+    if (lispd_config.eid_address_v4.afi) {
+        netsock = socket(lispd_config.eid_address_v4.afi, SOCK_DGRAM, 0);
         if (netsock < 0) {
             log_msg(INFO, "assign: socket() %s", strerror(errno));
             return(FALSE);
@@ -373,18 +439,33 @@ int set_tuntap_eid(lisp_addr_t *addr)
         strcpy(ifr.ifr_name, Tundev);
 
         sp = (struct sockaddr_in *)&ifr.ifr_addr;
-        sp->sin_family = addr->afi;
-        sp->sin_addr = addr->address.ip;
+        sp->sin_family = lispd_config.eid_address_v4.afi;
+        sp->sin_addr = lispd_config.eid_address_v4.address.ip;
 
         // Set the address
-        ioctl(netsock, SIOCSIFADDR, &ifr);
+
+        if ((err = ioctl(netsock, SIOCSIFADDR, &ifr)) < 0) {
+            log_msg(FATAL, "TUN/TAP could not set EID on tun device, errno %d.",
+                    errno);
+            return(FALSE);
+        }
         sp->sin_addr.s_addr = 0xFFFFFFFF;
-        ioctl(netsock, SIOCSIFNETMASK, &ifr);
+        if ((err = ioctl(netsock, SIOCSIFNETMASK, &ifr)) < 0) {
+            log_msg(FATAL, "TUN/TAP could not set netmask on tun device, errno %d",
+                    errno);
+            return(FALSE);
+        }
         ifr.ifr_flags |= IFF_UP | IFF_RUNNING; // Bring it up
-        ioctl(netsock, SIOCSIFFLAGS, &ifr);
+
+        if ((err = ioctl(netsock, SIOCSIFFLAGS, &ifr)) < 0) {
+            log_msg(FATAL, "TUN/TAP could not bring up tun device, errno %d.",
+                    errno);
+            return(FALSE);
+        }
         close(netsock);
-        return(TRUE);
-    } else if (addr->afi == AF_INET6) {
+    }
+
+    if (lispd_config.eid_address_v6.afi) {
 
         /*
          * In this case, we just add the address
@@ -392,9 +473,7 @@ int set_tuntap_eid(lisp_addr_t *addr)
          * neeed to create a new one.
          */
        // return(add_loopback_address_v6(addr)); XXX TUN/TAP
-        return(TRUE);
     }
-    log_msg(ERROR, "Unknown address family %d for EID in assign_eid()", addr->afi);
-    return(FALSE);
+    return(TRUE);
 }
 

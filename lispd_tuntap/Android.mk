@@ -15,7 +15,7 @@ LOCAL_SRC_FILES = cmdline.c lispd.c lispd_config.c lispd_syslog.c \
                   patricia/patricia.c lispd_map_request.c cksum.c \
                   lispd_events.c lispd_db.c lispd_map_reply.c \
                   lispd_timers.c lispd_if.c tables.c lispd_tuntap.c \
-                  lispd_encap.c
+                  lispd_encap.c lispd_decap.c lispd_ipc.c
 LOCAL_C_FLAGS += -g
 LOCAL_C_INCLUDES := external/openssl/include/
 LOCAL_STATIC_LIBRARIES := libconfuse

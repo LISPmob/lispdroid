@@ -125,3 +125,7 @@ lispd_tuntap.c
 lispd_encap.c
 lispd_encap.h
 lispd_tuntap.h
+lispd_decap.c
+lispd_decap.h
+lispd_ipc.c
+lispd_ipc.h

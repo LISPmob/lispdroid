@@ -478,7 +478,7 @@ void reconfigure_lisp_interfaces(void)
 void check_default_gateway(timer *t, void *arg)
 {
     if (primary_interface && get_current_default_gw(primary_interface)) {
-        install_default_routes(primary_interface, FALSE);
+        tuntap_install_default_routes();
         update_map_server_routes();
     }
     stop_timer(t);
@@ -729,10 +729,11 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
 
         log_msg(INFO, "Default route has changed (possibly by DHCP), overriding.");
 
-        // NOT NOW FOR TUN/TAP
-   // XXX    delete_default_route_v4(primary_interface);
-   // XXX    install_default_routes(primary_interface, FALSE);
-    // XXX    update_map_server_routes();
+#ifndef TUNTAP
+        delete_default_route_v4(primary_interface);
+        install_default_routes(primary_interface, FALSE);
+    update_map_server_routes();
+#endif
     } else {
         log_msg(INFO, "Default route has not changed, ignoring.");
     }
@@ -867,7 +868,6 @@ int get_configured_interface_count(void)
 int set_interface_mtu(lispd_if_t *intf)
 {
     struct ifreq ifr;
-    struct sockaddr_in *sp;
     int    netsock;
 
     netsock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -933,11 +933,6 @@ int setup_eid(cfg_t *cfg)
         lispd_config.eid_address_v6.afi = AF_INET6;
     }
 
-    /*
-     * Create loopback interface for ipv4, ipv6
-     */
-    set_tuntap_eid(&lispd_config.eid_address_v4);
-    set_tuntap_eid(&lispd_config.eid_address_v6);
     return(TRUE);
 }
 

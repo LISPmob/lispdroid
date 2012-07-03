@@ -863,6 +863,3 @@ void print_nonce (uint64_t nonce)
     log_msg(INFO,"nonce: 0x%08x-0x%08x\n", htonl(upper), htonl(lower));
 } 
 
-    
-
-    

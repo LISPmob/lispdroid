@@ -35,7 +35,6 @@
 #include <sys/types.h>
 #include <pthread.h>
 #include <sched.h>
-#include <sys/un.h>
 #include <errno.h>
 
 #include "lispd.h"
@@ -48,6 +47,7 @@
 #include "lispd_syslog.h"
 #include "lispd_map_register.h"
 #include "lispd_timers.h"
+#include "lispd_ipc.h"
 #include "tables.h"
 #include "version.h"
 
@@ -86,6 +86,7 @@ void init(void) {
     lispd_config.instance_id                    = 0;
     lispd_config.use_instance_id                = FALSE;
     lispd_config.use_location                   = FALSE;
+    lispd_config.tun_mtu                        = 0;
 }
 
 void dump_fatal_error(void) {
@@ -227,130 +228,6 @@ void die(int exitcode)
     exit(exitcode);
 }
 
-#define LISP_DCACHE_PATH_MAX 100
-#define LISP_DCACHE_FILE "/data/data/com.le.lispmon/lispd_dcache"
-
-int make_dsock_addr(const char *dsock_name, struct sockaddr_un *dsock_addr, socklen_t *dsock_len) 
-{
-    int namelen = strlen(dsock_name);
-
-    if ( namelen >= ( (int)sizeof(dsock_addr->sun_path) - 1 ) ) {
-        log_msg(ERROR, "namelen greater than allowed");
-        return -1;
-    }
-
-    strcpy(dsock_addr->sun_path, dsock_name);
-
-    dsock_addr->sun_family = AF_LOCAL;
-    dsock_len = strlen(dsock_addr->sun_path) + sizeof(dsock_addr->sun_family);
-
-    return 0;
-}
-
-#define MAX_IPC_COMMAND_LEN 128
-void * handle_dcache_requests(void *arg)
-{
-    struct sockaddr_un dsock_addr;
-    socklen_t dsock_len;
-    int dsock_fd, dclient_fd;
-    char *nonce, addr_buf[128], *msg = NULL, prefix_len[10], cmd[MAX_IPC_COMMAND_LEN];
-    int msize;
-
-    unlink(LISP_DCACHE_FILE);
-
-    memset((char *)&dsock_addr, 0 ,sizeof(struct sockaddr_un));
-
-    if ( make_dsock_addr(LISP_DCACHE_FILE, &dsock_addr, &dsock_len) < 0 ) {
-        log_msg(ERROR, "make_dsock failed");
-        return NULL;
-    }
-
-    if ( (dsock_fd = socket(AF_UNIX, SOCK_STREAM, 0) ) < 0) {
-        log_msg(ERROR, "socket creation failed %s", strerror(errno));
-        return NULL;
-    }
-
-    if ( ( bind(dsock_fd, (struct sockaddr *)&dsock_addr, sizeof(struct sockaddr_un)) ) != 0 ) {
-        log_msg(ERROR, "bind call failed %s", strerror(errno));
-        return NULL;
-    }
-
-    if ( listen(dsock_fd, 1) != 0 ) {
-        log_msg(ERROR, "listen failed %s", strerror(errno));
-        return NULL;
-    }
-
-    log_msg(INFO, "Listening on domain socket");
-
-    while (1) {
-
-        if ( ( dclient_fd = accept(dsock_fd, (struct sockaddr *)&dsock_addr, &dsock_len) ) == -1 ) {
-            log_msg(ERROR, "accept call failed %s", strerror(errno));
-            return NULL;
-        }
-
-        if ( recv(dclient_fd, cmd, MAX_IPC_COMMAND_LEN, 0) < 0 ) {
-            log_msg(INFO, "recv call failed, %s", strerror(errno));
-            return NULL;
-        }
-
-        log_msg(INFO, "Received command %s", cmd);
-
-        if ( strcmp(cmd, "DCACHE") == 0 ) {
-
-            log_msg(INFO, "Got connection request for dcache.");
-
-            datacache_elt_t *elt, *prev;
-
-            elt = datacache->head;
-            while (elt) {
-                nonce = lisp_print_nonce(elt->nonce);
-                inet_ntop(elt->eid_prefix.afi, &(elt->eid_prefix.address), addr_buf, sizeof(addr_buf));
-                sprintf(prefix_len, "%d", elt->prefix_length);
-                if (msg)
-                    free(msg);
-                msize = sizeof(addr_buf) + strlen(nonce) + strlen(prefix_len) + 1;
-                msg = (char *)malloc(sizeof(char)*msize);
-                sprintf(msg, "%s#%s#%s", addr_buf, prefix_len, nonce);
-                log_msg(INFO, "dcache entry: %s", msg);
-                if ( ( send(dclient_fd, msg, 200, 0) ) < 0 ) {
-                    log_msg(ERROR, "send error %s", strerror(errno));
-                    return NULL;
-                }
-                elt = elt->next;
-            }
-
-            close(dclient_fd);
-        }
-        else if ( strcmp(cmd, "CCACHE") == 0 ) {
-
-            log_msg(INFO, "Got connection request for clear_cache");
-            log_msg(INFO, "Clearing the Map Cache");
-            clear_map_cache();
-
-            close(dclient_fd);
-        }
-        else if ( strstr(cmd, "LOCATION") ) {
-
-            log_msg(INFO, "Got location information update");
-            close(dclient_fd);
-        }
-    }
-
-    return 0;
-}
-
-void listen_on_well_known_port()
-{
-    pthread_t dcache_t;
-
-    if ( pthread_create(&dcache_t, NULL, handle_dcache_requests, NULL) != 0 ) {
-        log_msg(ERROR, "thread creation failed %s", strerror(errno));
-        return;
-    }
-    pthread_detach(dcache_t);
-}
-
 
 int main(int argc, char **argv)
 {
@@ -447,11 +324,6 @@ int main(int argc, char **argv)
 
     create_tables();
 
-    if (create_tun() < 0) {
-        log_msg(FATAL, "  exiting...");
-        exit(EXIT_FAILURE);
-    }
-
     if (build_event_socket() == 0)
     {
         log_msg(FATAL, "  exiting...");
@@ -465,6 +337,11 @@ int main(int argc, char **argv)
     if (handle_lispd_config_file()) {
         log_msg(FATAL, "Fatal error parsing config file.");
         dump_fatal_error();
+        die(EXIT_FAILURE);
+    }
+
+    if (tuntap_create_tun() < 0) {
+        log_msg(FATAL, "  exiting...");
         die(EXIT_FAILURE);
     }
 
@@ -491,7 +368,7 @@ int main(int argc, char **argv)
 
     clear_map_cache();
 
-    // listen_on_well_known_port();
+    listen_on_well_known_port();
 
     dump_info_file();
     event_loop();

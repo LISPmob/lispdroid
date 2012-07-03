@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+#include "ip6.h"              // Direct import, missing in current Android source
 #include "net/route.h"
 #include "lispd_encap.h"
 #include "lispd_if.h"
@@ -48,7 +49,7 @@ int ipv4_transmit(char *packet_buf, int length, uint32_t dst_addr)
     int s, nbytes;
     struct sockaddr_in dst;
 
-    /* XXX: assumes v4 transport */
+    /* XXX: assumes v4 transport, probably should open this only once early on too. */
     if ((s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) < 0) {
         log_msg(INFO, "socket (send_map_request): %s", strerror(errno));
         return 0;
@@ -67,7 +68,7 @@ int ipv4_transmit(char *packet_buf, int length, uint32_t dst_addr)
                          sizeof(struct sockaddr))) < 0) {
         close(s);
         free(packet_buf);
-        log_msg(INFO, "sendto (ipv4_transmit): %s", strerror(errno));
+        log_msg(INFO, "sendto (ipv4_transmit): %s, msg len: %d", strerror(errno), length);
         return 0;
     }
 
@@ -204,8 +205,13 @@ void lisp_encap4(char *packet_buf, int length, int locator_addr)
   iph->ttl      = old_iph->ttl;
 
 #ifdef DEBUG_PACKETS
- log_msg(INFO, "     Packet encapsulated to 0x%xfrom 0x%x\n",
-         (iph->daddr), (iph->saddr));
+  {
+      char buf1[128];
+      char buf2[128];
+      log_msg(INFO, "     Packet encapsulated to %s from %s\n",
+         inet_ntop(AF_INET, &iph->daddr, buf1, 128),
+              inet_ntop(AF_INET, &iph->saddr, buf2, 128));
+  }
 #endif
   ipv4_transmit(new_packet, length + encap_size, locator_addr);
   return;

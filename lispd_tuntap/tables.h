@@ -11,6 +11,7 @@
 #pragma once
 
 #include "lispd.h"
+#include "lispd_timers.h"
 
 #define TRAFFIC_MON_PERIOD (15) // in seconds
 
@@ -65,9 +66,9 @@ typedef struct _lisp_map_cache_t {
   uint16_t                  ttl;                /* ttl for the whole mapping */
   uint32_t                sampling_interval;    /* how often to send a copy to lispd */
   uint32_t                timestamp;          /* entry creation time */
-// XXX replace with user space timer struct timer_list       expiry_timer;       /* Expiration kernel timer */
-// XXX replace with user space timer struct timer_list       smr_timer;       /* Sample to user space timer for SMR */
-// XXX replace with user space timer struct timer_list       probe_timer;     /* Sample to user space timer for RLOC Probe */
+  timer                   expiry_timer;
+  timer                   smr_timer;
+  timer                   probe_timer;
   uint32_t                control_packets_in; 
   uint32_t                control_packets_out;
   uint32_t                lsb;                /* Locator status bits */

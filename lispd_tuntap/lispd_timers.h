@@ -37,4 +37,4 @@ timer   *create_timer(char *);
 void     start_timer(timer *, int, timer_callback,
                    void *);
 void     stop_timer(timer *);
-
+void     handle_timers(void);
