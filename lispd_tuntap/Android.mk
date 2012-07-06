@@ -6,7 +6,7 @@ LOCAL_PATH:= $(call my-dir)
 etc_dir := $(TARGET_OUT)/etc/lispd
 
 subdirs := $(addprefix $(LOCAL_PATH)/,$(addsuffix /Android.mk, \
-	confuse/ lispmanager/ \
+	confuse/ lispmanager/ lispconf/ \
 ))
 
 include $(CLEAR_VARS)

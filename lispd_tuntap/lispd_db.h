@@ -10,7 +10,7 @@
 #include <time.h>
 #include "patricia/patricia.h"
 #include "lispd_if.h"
-#include "lisp_ipc.h"            // Should be a level up XXX
+#include "lispd_ipc.h"
 #include "lispd_map_request.h"
 
 /*

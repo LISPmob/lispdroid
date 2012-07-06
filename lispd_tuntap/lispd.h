@@ -34,10 +34,10 @@
 #include <sys/param.h>
 #include <time.h>
 #include <unistd.h>
-#include "lisp_ipc.h"
 #include "linux/netlink.h"
 #include "patricia/patricia.h"
 #include "lispd_syslog.h"
+#include "lispd_ipc.h"
 
 /*
  *	CO --
@@ -91,7 +91,7 @@
  *	generic list of addresses
  */
 typedef struct _lispd_addr_list_t {
-    lisp_addr_t	      *address;     // Why is this a pointer? XXX
+    lisp_addr_t	      *address;
     struct _lispd_addr_list_t *next;
 } lispd_addr_list_t;
 

@@ -18,13 +18,15 @@
 #include "lispd_db.h"
 #include "lispd_util.h"
 #include "lispd_timers.h"
-#include "lisp_ipc.h" // From lisp_mod directory, need to harmonize this XXX
+#include "lispd_ipc.h" // From lisp_mod directory, need to harmonize this XXX
 #include "lispd_map_request.h"
 #include "tables.h"
 
 struct  sockaddr_nl dst_addr;
 struct  sockaddr_nl src_addr;
 
+#define MAX_MSG_LENGTH 1024
+#define NETLINK_LISP 20
 extern int netlink_fd;
 
 int send_command(lisp_cmd_t *cmd, int length)

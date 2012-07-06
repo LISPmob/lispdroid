@@ -79,7 +79,6 @@ ifaddrs-android.h
 install.sh
 ip6.h
 lisp_input.h
-lisp_ipc.h
 lisp_output.h
 lispd.c
 lispd.h
@@ -129,3 +128,10 @@ lispd_decap.c
 lispd_decap.h
 lispd_ipc.c
 lispd_ipc.h
+lispconf/Android.mk
+lispconf/Makefile
+lispconf/lispconf.ggo
+lispconf/debug.sh
+lispconf/cmdline.h
+lispconf/lispconf.c
+lispconf/cmdline.c

@@ -13,7 +13,7 @@
 #include "lispd_netlink.h"
 #include "lispd_db.h"
 #include "lispd_map_reply.h"
-#include "lisp_ipc.h"       // Global lisp_mod/lispd header should consolidate XXX
+#include "lispd_ipc.h"
 #include "lispd_config.h"
 #include "lispd_util.h"
 

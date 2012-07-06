@@ -13,7 +13,6 @@
  */
 
 #include "lispd_db.h"
-#include "lisp_ipc.h"
 #include "lispd_timers.h"
 
 int process_kernel_msg(void);

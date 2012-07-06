@@ -47,7 +47,6 @@
 #include "lispd_syslog.h"
 #include "lispd_map_register.h"
 #include "lispd_timers.h"
-#include "lispd_ipc.h"
 #include "tables.h"
 #include "version.h"
 
