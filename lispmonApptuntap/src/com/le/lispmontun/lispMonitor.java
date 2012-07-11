@@ -1,4 +1,4 @@
-package com.le.lispmon;
+package com.le.lispmontun;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -184,7 +184,7 @@ public class lispMonitor extends Activity implements OnClickListener {
 
         // Set up the communication path to lispd. This will be extended to take over
         // from lispconf eventually.
-        lispdSocketAddr = new LocalSocketAddress("/data/data/com.le.lispmon/lispd_dcache", LocalSocketAddress.Namespace.FILESYSTEM);
+        lispdSocketAddr = new LocalSocketAddress("/data/data/com.le.lispmontun/lispd_ipc_server", LocalSocketAddress.Namespace.FILESYSTEM);
         lispdSocket = new LocalSocket();
     }
     
@@ -197,7 +197,7 @@ public class lispMonitor extends Activity implements OnClickListener {
     protected void onPause() {
     	super.onPause();
     	
-    	Log.v("lispMonitor", "Pausing...");
+    	Log.v("lispMonitor", "Pausing..");
     	// Stop all timers
     	mUpdateTimer.cancel();
     }
@@ -282,26 +282,25 @@ public class lispMonitor extends Activity implements OnClickListener {
     	statusView.setText(output.toString());
     }
     
+    boolean lispdWasRunning = false;
     public void updateStatus() {
     	final CheckBox lispCheckBox = (CheckBox) findViewById(R.id.startStopCheckbox);
     	final TextView lispCheckBoxLabel = (TextView) findViewById(R.id.startStopCheckboxLabel);
     	final TextView statusView = (TextView) findViewById(R.id.infoView);
     	boolean lispdRunning = false;
-    	boolean lispmodRunning = false;
     	
-    	String lsmodOutput = runTask("/system/bin/lsmod", "", false);
     	String psOutput = runTask("/system/bin/ps", "", false);
     	
-    	lispdRunning = psOutput.contains("lispd");
-    	lispmodRunning = lsmodOutput.contains("lisp");
+    	lispdRunning = psOutput.contains("R /system/bin/lispd") || psOutput.contains("S lispd"); // No zombies only running or sleeping.
     	
-    	if (lispdRunning && lispmodRunning) {
+    	if (lispdRunning) {
     		lispCheckBoxLabel.setText(R.string.lispRunning);
     		lispCheckBoxLabel.setTextColor(Color.WHITE);
     		lispCheckBox.setChecked(true);
     		updateInfoView();
-    	} else if (lispmodRunning) {
-    		lispCheckBoxLabel.setText("lispd has crashed, click to restart.");
+    		lispdWasRunning = true;
+    	} else if (lispdWasRunning) {
+    		lispCheckBoxLabel.setText("lispd has exited, click to restart.");
     		lispCheckBoxLabel.setTextColor(Color.RED);
     		
     		lispCheckBox.setChecked(false);
@@ -316,6 +315,8 @@ public class lispMonitor extends Activity implements OnClickListener {
     		lispCheckBoxLabel.setText(R.string.lispNotRunning);
     		lispCheckBoxLabel.setTextColor(Color.WHITE);
     		lispCheckBox.setChecked(false);
+    		updateInfoView();
+
     		statusView.setText("");
     	}
     }
@@ -362,13 +363,6 @@ public class lispMonitor extends Activity implements OnClickListener {
     	 return(runTask(command, "start", true));
     }
     
-    public void installModule() {
-    	runTask("/system/bin/lispmanager", "install", true);
-    }
-    public void removeModule() {
-    	runTask("/system/bin/lispmanager", "remove", true);
-    }
-    
     Handler handler;
     Runnable doUpdateView;
     //expressed in milliseconds
@@ -379,14 +373,12 @@ public class lispMonitor extends Activity implements OnClickListener {
 
 		if (V == findViewById(R.id.startStopCheckbox)) {
 			if (lispCheckBox.isChecked()) {
-				installModule();
 				startLispd();
 				return;
 			}
 			showMessage("Stop the LISP service?",
 					true, new Runnable() { public void run() {
 						killLispd();
-						removeModule();
 					}
 			});
 		}
