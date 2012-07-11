@@ -27,7 +27,7 @@ const char *moduleRemoveCommand = "/system/bin/rmmod";
 const char *killCommand = "/system/bin/kill -15";
 const char *lockFilename = "/sdcard/lispd.lock";
 const char *moduleCheckFilename = "/proc/modules";
-const char *procCheckCommand = "/system/xbin/pgrep -l lispd";
+const char *procCheckCommand = "/system/xbin/pgrep -nl lispd";
 
 int startDaemon(void)
 {
@@ -70,30 +70,8 @@ int removeKernelMod(void)
 
 void getStatus(void)
 {
-    FILE *procModFile;
     FILE *procPipe;
     char  statusString[128];
-    char found = 0;
-    char status = 0;
-
-    procModFile = fopen(moduleCheckFilename, "r");
-
-    while (!feof(procModFile)) {
-        fread(statusString, 128, 1, procModFile);
-        if (strstr(statusString, "lisp")) {
-            printf("Kernel module: loaded.\n");
-            found = 1;
-        }
-    }
-
-    if (!found) {
-        printf("Kernel module: not loaded.\n");
-        printf("lispd: not running.\n");
-        status = 2;
-        exit(status);
-    }
-
-    found = 0;
 
     procPipe = popen(procCheckCommand, "r");
 
@@ -105,12 +83,11 @@ void getStatus(void)
     fgets(statusString, 128, procPipe);
     if (strstr(statusString, "lispd")) {
         printf("lispd: running.\n");
-        exit(status);
+        exit(0);
     }
 
     printf("lispd: not running.\n");
-    status = 1;
-    exit(status);
+    exit(1);
 }
 
 int main(int argc, char **argv)

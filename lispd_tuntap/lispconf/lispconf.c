@@ -49,13 +49,27 @@ int send_command(lisp_cmd_t *cmd, int length)
 {
 
     int retval;
+    int retries = 2;
+    struct timeval tv;
 
-    printf("Cmd: 0x%x, cmd->length: %d", cmd, cmd->length);
-    if ((retval = sendto(dsock_fd, cmd, sizeof(lisp_cmd_t) + cmd->length,  0,
-                         (struct sockaddr*)&server_sock, sizeof(struct sockaddr_un)) < 0)) {
+    tv.tv_sec = 1; /* 1 second timeout */
+    tv.tv_usec = 0;
+
+    setsockopt(dsock_fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&tv, sizeof(struct timeval));
+    while (retries) {
+        if ((retval = sendto(dsock_fd, cmd, sizeof(lisp_cmd_t) + cmd->length,  0,
+                             (struct sockaddr*)&server_sock, sizeof(struct sockaddr_un)) < 0)) {
+            retries--;
+            printf("timeout error, retrying...");
+        } else {
+            break;
+        }
+    }
+    if (!retries) {
         printf("Failed to send message, errno %d (%s)", errno, strerror(errno));
         exit(-1);
     }
+
     return retval;
 }
 
@@ -262,6 +276,11 @@ int process_print_cache_responses(void)
     char *formatted_rloc = NULL;
     struct timeval uptime;
     struct timeval expiretime;
+    int retries = 2;
+    struct timeval tv;
+
+    tv.tv_sec = 1; /* 1 second timeout */
+    tv.tv_usec = 0;
     
     if (!cmd) {
         printf("Memory allocation failure\n");
@@ -270,15 +289,15 @@ int process_print_cache_responses(void)
 
     printf("LISP IP Mapping Cache\n\n");
 
+
+    setsockopt(dsock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(struct timeval));
     while (1) {
         if ((retval = recvfrom(dsock_fd, cmd, MAX_MSG_LENGTH, 0, (struct sockaddr *)&server_sock,
                                &addr_len)) < 0) {
-            perror("recv");
             break;
         }
         if (!retval) {
-            printf("Peer closed connection.");
-            break;
+            return(errno);
         }
         map_msg = (lisp_cache_response_msg_t *)cmd->val;
         if (cmd->type == LispOk) {
@@ -602,6 +621,7 @@ int send_print_command(struct gengetopt_args_info *args_info)
     lisp_cmd_t        *cmd;
     int cmd_length = sizeof(lisp_cmd_t) + sizeof(lisp_lookup_msg_t);
     int retval;
+    int retries = 2;
     lisp_addr_t eid_prefix;
     int eid_prefix_len;
     int eid_af;
@@ -689,10 +709,21 @@ int send_print_command(struct gengetopt_args_info *args_info)
 
     retval = send_command(cmd, cmd_length);
     
-    if (cache) {
-        process_print_cache_responses();
-    } else {
-        process_print_db_responses();
+    while (retries) {
+        if (cache) {
+            retval = process_print_cache_responses();
+        } else {
+            retval = process_print_db_responses();
+        }
+        if (retval == ETIMEDOUT) {
+            retries--;
+            continue;
+        } else {
+            if (retval != 0) {
+                printf("Error waiting for response from lispd: %d", errno);
+            }
+            break;
+        }
     }
     return retval;
 }

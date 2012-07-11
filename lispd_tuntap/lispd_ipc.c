@@ -109,9 +109,7 @@ static void wait_for_completion()
 static void * handle_ipc_requests(void *arg)
 {
     struct sockaddr_un sock_addr;
-    socklen_t sock_len;
-    struct msghdr msg;
-    struct iovec  v;
+    socklen_t sock_len = sizeof(struct sockaddr_un);
     lisp_cmd_t *cmd = malloc(MaxIPCCommandLen);
 
     if (!cmd) {
@@ -269,7 +267,7 @@ int send_cache_lookup_response_msg(lisp_map_cache_t *entry)
     log_msg(INFO,  " Sending response.");
     err = send_message(cmd);
     if (err < 0)
-        log_msg(INFO,  " netlink_unicast() returned %d\n", err);
+        log_msg(INFO,  " send_message() returned %d\n", err);
     free(cmd);
     return 0;
 }
