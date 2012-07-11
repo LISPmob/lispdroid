@@ -141,7 +141,6 @@ void tuntap_process_output_packet(void)
 
     nread = read(tun_receive_fd, tun_receive_buf, TunReceiveSize);
 
-    log_msg(INFO, "Output packet first byte: 0x%x", tun_receive_buf[0]);
     ipversion = (tun_receive_buf[0] & 0xf0) >> 4;
     switch (ipversion) {
 

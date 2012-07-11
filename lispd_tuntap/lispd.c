@@ -203,7 +203,7 @@ int get_process_lock(int pid)
     fl.l_start = 0;
     fl.l_len = 1;
 
-    if ((fdlock = open(LISPD_LOCKFILE, O_WRONLY|O_CREAT|O_EXCL, 0666)) == -1) {
+    if ((fdlock = open(LISPD_LOCKFILE, O_RDWR|O_CREAT, 0666)) == -1) {
         return FALSE;
     }
 
