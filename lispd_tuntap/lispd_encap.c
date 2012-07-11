@@ -18,9 +18,8 @@
 #include "lispd_config.h"
 #include "tables.h"
 
-#define DEBUG 
+#define DEBUG
 #define DEBUG_PACKETS
-#define NEW_KERNEL
 
 #define LISP_CONTROL_PORT 4342
 #define LISP_ENCAP_PORT 4341
@@ -106,11 +105,13 @@ uint32_t get_rloc_address_from_skb(struct sk_buff *skb)
     return entry->addr.address.ip.s_addr;
 }
 #endif
+
 void lisp_encap4(char *packet_buf, int length, int locator_addr)
 {
   struct udphdr *udh;
   struct iphdr *iph;
-  struct iphdr *old_iph = (struct iphdr *)packet_buf;
+  struct iphdr *old_iph4 = (struct iphdr *)packet_buf;
+  struct ip6_hdr *old_iph6 = (struct ip6_hdr *)packet_buf;
   struct lisphdr *lisph;
   char    *new_packet;
   uint32_t encap_size;
@@ -199,10 +200,21 @@ void lisp_encap4(char *packet_buf, int length, int locator_addr)
   iph->ihl      =     sizeof(struct iphdr)>>2;
   iph->frag_off = 0;   // XXX recompute above, use method in 5.4.1 of draft
   iph->protocol = IPPROTO_UDP;
-  iph->tos      = old_iph->tos; // Need something else too? XXX
+  if (old_iph4->version == 4) {
+      iph->tos      = old_iph4->tos; // Need something else too? XXX
+  } else {
+      iph->tos      = 0; // No map from v6 to v6 tos.
+  }
   iph->daddr    = locator_addr;
   iph->saddr    = rloc;
-  iph->ttl      = old_iph->ttl;
+  if (old_iph4->version == 4) {
+      iph->ttl      = old_iph4->ttl;
+  } else if (old_iph4->version == 6) {
+      iph->ttl      = old_iph6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
+      log_msg(INFO, "Set ipv4 ttl to %d from v6 packet", iph->ttl);
+  } else {
+      iph->ttl      = 0;
+  }
 
 #ifdef DEBUG_PACKETS
   {
@@ -218,8 +230,7 @@ void lisp_encap4(char *packet_buf, int length, int locator_addr)
 }
 
 #if 0
-void lisp_encap6(struct sk_buff *skb, lisp_addr_t locator_addr,
-		 ushort inner_afi)
+void lisp_encap6(char *packet_buf, int length, int locator_addr)
 {
   struct udphdr *udh;
   struct ipv6hdr *iph;
@@ -404,28 +415,30 @@ void lisp_encap6(struct sk_buff *skb, lisp_addr_t locator_addr,
 
   return;
 }
+#endif
 
-unsigned int lisp_output6(unsigned int hooknum,
-			  struct sk_buff *packet_buf,
-			  const struct net_device *input_dev,
-			  const struct net_device *output_dev,
-			  int (*okfunc)(struct sk_buff*))
+unsigned int lisp_output6(char *packet_buf, int length)
 {
-  struct ipv6hdr *iph;
+  struct ip6_hdr   *iph;
   lisp_map_cache_t *eid_entry;
-  int retval;
-  lisp_addr_t locator_addr;
-  ushort      loc_afi;
-  lisp_addr_t dst_addr;
+  int               retval;
+  lisp_addr_t       locator_addr;
+  uint16_t          loc_afi;
+  lisp_addr_t       dst_addr;
 
   /* 
    * Extract the ip header
    */
-  iph = ipv6_hdr(packet_buf);
-  
-#ifdef DEBUG
-  printk(KERN_INFO "   Output packet originally destined for %pI6 from %pI6\n", iph->daddr.s6_addr,
-         iph->saddr.s6_addr);
+  iph = (struct ip6_hdr *)(packet_buf);
+
+#ifdef DEBUG_PACKETS
+  {
+      char addr_buf[128];
+      char addr_buf2[128];
+      log_msg(INFO, "   Output packet destined for %s from %s\n",
+              inet_ntop(AF_INET6, iph->ip6_dst.s6_addr, addr_buf, 128),
+              inet_ntop(AF_INET6, iph->ip6_src.s6_addr, addr_buf2, 128));
+  }
 #endif
 
   /*
@@ -445,7 +458,8 @@ unsigned int lisp_output6(unsigned int hooknum,
    * issues with directly using the entry pointer here. May
    * need to lock it or make a copy (ick)
    */
-  memcpy(dst_addr.address.ipv6.s6_addr, iph->daddr.s6_addr, sizeof(lisp_addr_t));
+  dst_addr.afi = AF_INET6;
+  memcpy(dst_addr.address.ipv6.s6_addr, iph->ip6_dst.s6_addr, sizeof(iph->ip6_dst));
   retval = lookup_eid_cache_v6(dst_addr, &eid_entry);
   
   /*
@@ -453,10 +467,9 @@ unsigned int lisp_output6(unsigned int hooknum,
    * of above function).
    */
   if (retval == 0 || !eid_entry->count) {
-
-    printk(KERN_INFO "No EID mapping found, notifying lispd...\n");
-    send_cache_miss_notification(dst_addr, AF_INET6);
-    return NF_ACCEPT;  // What's the right thing to do here? XXX
+      log_msg(INFO, "No EID mapping found, notifying lispd...\n");
+      handle_cache_miss(dst_addr);
+      return 0;
   }
 
   /*
@@ -468,38 +481,36 @@ unsigned int lisp_output6(unsigned int hooknum,
    * Get the first locator for now... sync up with output4 to use hash XXX
    */
   if (!eid_entry->locator_list[0]) {
-    printk(KERN_INFO " No suitable locators.\n");
-    return(NF_DROP);
+    log_msg(INFO, " No suitable locators.\n");
+    return(0);
   } else {
       loc_afi = eid_entry->locator_list[0]->locator.afi;
       memcpy(&locator_addr, &eid_entry->locator_list[0]->locator, sizeof(lisp_addr_t));
-    printk(KERN_INFO " Locator found.\n");
+      log_msg(INFO, " Locator found.\n");
   }
   
   /* 
    * Prepend UDP, LISP, outer IP header
    */
   if (loc_afi == AF_INET) {
-      lisp_encap4(packet_buf, locator_addr.address.ip.s_addr,
-                  AF_INET6);
-      printk(KERN_INFO "   Using locator address: %pI4\n", &locator_addr);
+      lisp_encap4(packet_buf, length, locator_addr.address.ip.s_addr);
+#ifdef DEBUG_PACKETS
+      log_msg(INFO, "   Using locator address: %pI4\n", &locator_addr);
+#endif
   } else {
       if (loc_afi == AF_INET6) {
-          lisp_encap6(packet_buf, locator_addr, AF_INET6);
-          printk(KERN_INFO "   Using locator address: %pI6\n", locator_addr.address.ipv6.s6_addr);
+        //  lisp_encap6(packet_buf, locator_addr, AF_INET6);
+#ifdef DEBUG_PACKETS
+          log_msg(INFO, "   Using locator address: %pI6\n", locator_addr.address.ipv6.s6_addr);
+#endif
       }
   }
 
   eid_entry->locator_list[0]->data_packets_out++;
-
-  /* 
-   * In all liklihood we've disposed of the orignal skb
-   * for size reasons. We must transmit it ourselves, and
-   * force the upper-layers to conside it gone.
-   */
-  return NF_STOLEN;
+  return(1);
 }
 
+#if 0
 /*
  * is_v4addr_local
  *
@@ -529,15 +540,13 @@ bool is_v4addr_local(struct iphdr *iph, struct sk_buff *packet_buf)
 
 unsigned int lisp_output4(char *packet_buf, int length)
 {
-  struct iphdr *iph;
-  struct udphdr *udh;
+  struct iphdr     *iph;
+  struct udphdr    *udh;
   lisp_map_cache_t *eid_entry;
-  int retval;
-  int locator_addr;
-  unsigned char loc_index;
-  lisp_addr_t miss_addr;
-  char addr_buf[128];
-  char addr_buf2[128];
+  int               retval;
+  int               locator_addr;
+  unsigned char     loc_index;
+  lisp_addr_t       miss_addr;
 
   /* 
    * Extract the ip header
@@ -545,9 +554,13 @@ unsigned int lisp_output4(char *packet_buf, int length)
   iph = (struct iphdr *)packet_buf;
   
 #ifdef DEBUG_PACKETS
-  log_msg(INFO, "   Output packet destined for %s from %s, proto: %d\n",
-          inet_ntop(AF_INET, &iph->daddr, addr_buf, 128),
-         inet_ntop(AF_INET, &iph->saddr, addr_buf2, 128), iph->protocol);
+  {
+      char addr_buf[128];
+      char addr_buf2[128];
+      log_msg(INFO, "   Output packet destined for %s from %s, proto: %d\n",
+              inet_ntop(AF_INET, &iph->daddr, addr_buf, 128),
+              inet_ntop(AF_INET, &iph->saddr, addr_buf2, 128), iph->protocol);
+  }
 #endif
 
   /*
@@ -625,7 +638,7 @@ unsigned int lisp_output4(char *packet_buf, int length)
   }
 
   /* 
-   * Prepend UDP, LISP, outer IP header
+   * Prepend UDP, LISP, outer IP header (use encap6 if locator is ipv6 XXX)
    */
   lisp_encap4(packet_buf, length, locator_addr);
 

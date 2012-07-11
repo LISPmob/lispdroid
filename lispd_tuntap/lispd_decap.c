@@ -15,8 +15,8 @@
 
 const char echo_signature = 0x78; // First byte past udp header if lisp echo reply
 
-#define DEBUG
-#define DEBUG_PACKETS
+//#define DEBUG
+//#define DEBUG_PACKETS
 
 /*
  * check_locator_bits()

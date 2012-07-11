@@ -32,7 +32,7 @@ int tuntap_set_eids(void);
 int tuntap_create_tun() {
 
     struct ifreq ifr;
-    int err, tmpsocket, flags = IFF_TUN | IFF_NO_PI;
+    int err, tmpsocket, flags = IFF_TUN | IFF_NO_PI; // Create a tunnel without persistence
     char *clonedev = "/dev/tun";
 
 
@@ -51,11 +51,11 @@ int tuntap_create_tun() {
 
     memset(&ifr, 0, sizeof(ifr));
 
-    ifr.ifr_flags = flags;   /* IFF_TUN or IFF_TAP, plus maybe IFF_NO_PI */
+    ifr.ifr_flags = flags;
     strncpy(ifr.ifr_name, Tundev, IFNAMSIZ);
 
-    /* try to create the device */
-    if ( (err = ioctl(tun_receive_fd, TUNSETIFF, (void *) &ifr)) < 0 ) {
+    // try to create the device
+    if ((err = ioctl(tun_receive_fd, TUNSETIFF, (void *) &ifr)) < 0) {
         close(tun_receive_fd);
         log_msg(INFO, "TUN/TAP: Failed to create tunnel interface, errno: %d.", errno);
         return(FALSE);
@@ -137,10 +137,21 @@ void tuntap_process_input_packet(char *packet_buf, int length, void *source)
 void tuntap_process_output_packet(void)
 {
     int nread;
+    char ipversion;
 
-    log_msg(INFO, "In process_output_packet()");
     nread = read(tun_receive_fd, tun_receive_buf, TunReceiveSize);
-    lisp_output4(tun_receive_buf, nread);
+
+    log_msg(INFO, "Output packet first byte: 0x%x", tun_receive_buf[0]);
+    ipversion = (tun_receive_buf[0] & 0xf0) >> 4;
+    switch (ipversion) {
+
+    case 4:
+        lisp_output4(tun_receive_buf, nread);
+        break;
+    case 6:
+        lisp_output6(tun_receive_buf, nread);
+        break;
+    }
 }
 
 /*
@@ -159,7 +170,6 @@ void tuntap_start_tun_recv(void)
     }
  //   pthread_detach(receiver_thread);
 }
-
 
 /*
  * install_default_route_v4()
@@ -416,63 +426,126 @@ int tuntap_install_default_routes(void) {
 }
 
 /*
- * tuntap_set_eid()
+ * tuntap_set_v4_eid
  *
- * Assign an EID to the TUN/TAP interface
+ * Assign an ipv4 EID to the TUN/TAP interface
  */
-int tuntap_set_eids(void)
+static int tuntap_set_v4_eid(void)
 {
     struct ifreq ifr;
     struct sockaddr_in *sp;
     int    netsock, err;
 
-    if (lispd_config.eid_address_v4.afi) {
-        netsock = socket(lispd_config.eid_address_v4.afi, SOCK_DGRAM, 0);
-        if (netsock < 0) {
-            log_msg(INFO, "assign: socket() %s", strerror(errno));
-            return(FALSE);
-        }
+    netsock = socket(lispd_config.eid_address_v4.afi, SOCK_DGRAM, 0);
+    if (netsock < 0) {
+        log_msg(INFO, "assign: socket() %s", strerror(errno));
+        return(FALSE);
+    }
 
-        /*
-         * Fill in the request
+    /*
+     * Fill in the request
+     */
+    strcpy(ifr.ifr_name, Tundev);
+
+    sp = (struct sockaddr_in *)&ifr.ifr_addr;
+    sp->sin_family = lispd_config.eid_address_v4.afi;
+    sp->sin_addr = lispd_config.eid_address_v4.address.ip;
+
+    // Set the address
+
+    if ((err = ioctl(netsock, SIOCSIFADDR, &ifr)) < 0) {
+        log_msg(FATAL, "TUN/TAP could not set EID on tun device, errno %d.",
+                errno);
+        return(FALSE);
+    }
+    sp->sin_addr.s_addr = 0xFFFFFFFF;
+    if ((err = ioctl(netsock, SIOCSIFNETMASK, &ifr)) < 0) {
+        log_msg(FATAL, "TUN/TAP could not set netmask on tun device, errno %d",
+                errno);
+        return(FALSE);
+    }
+    ifr.ifr_flags |= IFF_UP | IFF_RUNNING; // Bring it up
+
+    if ((err = ioctl(netsock, SIOCSIFFLAGS, &ifr)) < 0) {
+        log_msg(FATAL, "TUN/TAP could not bring up tun device, errno %d.",
+                errno);
+        return(FALSE);
+    }
+    close(netsock);
+    return(TRUE);
+}
+
+/*
+ * tuntap_set_v6_eid()
+ *
+ * Assign an ipv6 EID to the TUN/TAP interface
+ */
+static int tuntap_set_v6_eid(void)
+{
+    struct rtattr       *rta;
+    struct ifaddrmsg    *ifa;
+    struct nlmsghdr     *nlh;
+    char                 sndbuf[4096];
+    int                  retval;
+    int                  sockfd;
+
+    sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
+
+    if (sockfd < 0) {
+        log_msg(INFO, "Failed to connect to netlink socket for install_host_route()");
+        return(FALSE);
+    }
+
+    /*
+         * Build the command
          */
-        strcpy(ifr.ifr_name, Tundev);
+    memset(sndbuf, 0, 4096);
+    nlh = (struct nlmsghdr *)sndbuf;
+    nlh->nlmsg_len = NLMSG_LENGTH(sizeof(struct ifaddrmsg) + sizeof(struct rtattr) +
+                                  sizeof(struct in6_addr));
+    nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_REPLACE;
+    nlh->nlmsg_type = RTM_NEWADDR;
+    ifa = (struct ifaddrmsg *)(sndbuf + sizeof(struct nlmsghdr));
 
-        sp = (struct sockaddr_in *)&ifr.ifr_addr;
-        sp->sin_family = lispd_config.eid_address_v4.afi;
-        sp->sin_addr = lispd_config.eid_address_v4.address.ip;
+    ifa->ifa_prefixlen = 128;
+    ifa->ifa_family = AF_INET6;
+    ifa->ifa_index  = tun_ifindex;
+    ifa->ifa_scope = RT_SCOPE_HOST;
+    rta = (struct rtattr *)(sndbuf + sizeof(struct nlmsghdr) + sizeof(struct ifaddrmsg));
+    rta->rta_type = IFA_LOCAL;
 
-        // Set the address
+    rta->rta_len = sizeof(struct rtattr) + sizeof(struct in6_addr);
+    memcpy(((char *)rta) + sizeof(struct rtattr), lispd_config.eid_address_v6.address.ipv6.s6_addr,
+           sizeof(struct in6_addr));
 
-        if ((err = ioctl(netsock, SIOCSIFADDR, &ifr)) < 0) {
-            log_msg(FATAL, "TUN/TAP could not set EID on tun device, errno %d.",
-                    errno);
-            return(FALSE);
-        }
-        sp->sin_addr.s_addr = 0xFFFFFFFF;
-        if ((err = ioctl(netsock, SIOCSIFNETMASK, &ifr)) < 0) {
-            log_msg(FATAL, "TUN/TAP could not set netmask on tun device, errno %d",
-                    errno);
-            return(FALSE);
-        }
-        ifr.ifr_flags |= IFF_UP | IFF_RUNNING; // Bring it up
+    retval = send(sockfd, sndbuf, nlh->nlmsg_len, 0);
 
-        if ((err = ioctl(netsock, SIOCSIFFLAGS, &ifr)) < 0) {
-            log_msg(FATAL, "TUN/TAP could not bring up tun device, errno %d.",
-                    errno);
-            return(FALSE);
-        }
-        close(netsock);
+    if (retval < 0) {
+        log_msg(INFO, "tuntap_set_v6_eid: send() failed %s", strerror(errno));
+        close(sockfd);
+        return(FALSE);
+    }
+
+    log_msg(INFO, "added ipv6 EID to TUN interface.");
+    close(sockfd);
+    return(TRUE);
+}
+
+/*
+ * tuntap_set_eids()
+ *
+ * Assign an EID to the TUN/TAP interface
+ */
+int tuntap_set_eids(void)
+{
+    int retval = 0;
+
+    if (lispd_config.eid_address_v4.afi) {
+        retval = tuntap_set_v4_eid();
     }
 
     if (lispd_config.eid_address_v6.afi) {
-
-        /*
-         * In this case, we just add the address
-         * to the default loopback interface, no
-         * neeed to create a new one.
-         */
-       // return(add_loopback_address_v6(addr)); XXX TUN/TAP
+        retval = tuntap_set_v6_eid();
     }
     return(TRUE);
 }
