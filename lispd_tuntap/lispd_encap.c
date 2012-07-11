@@ -18,8 +18,8 @@
 #include "lispd_config.h"
 #include "tables.h"
 
-#define DEBUG
-#define DEBUG_PACKETS
+//#define DEBUG
+//#define DEBUG_PACKETS
 
 #define LISP_CONTROL_PORT 4342
 #define LISP_ENCAP_PORT 4341
