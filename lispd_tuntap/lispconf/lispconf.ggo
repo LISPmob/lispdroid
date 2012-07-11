@@ -18,7 +18,6 @@ modeoption "ttl" t "Time-to-live in seconds"
 # delete database entry mode
 defmode "delmode"
 
-
 # print entries mode
 defmode "printmode"
 modeoption "print" x "Print EID table" values="db","cache" default="cache" mode="printmode" optional
@@ -32,3 +31,6 @@ modeoption "list" l "List EIDs or RLOCS" values="eids","rlocs" default="eids" mo
 defmode "rlocmode"
 modeoption "interface" i "Specify a local interface as RLOC of LISP encapsulated packets" string typestr="Linux network interface device name" mode="rlocmode" optional
 
+# clear cache mode
+defmode "clearcache"
+modeoption "clear" c "Clear EID Map Cache" mode="clearcache" optional

@@ -69,6 +69,7 @@ struct gengetopt_args_info
   char * interface_arg;	/**< @brief Specify a local interface as RLOC of LISP encapsulated packets.  */
   char * interface_orig;	/**< @brief Specify a local interface as RLOC of LISP encapsulated packets original value given at command line.  */
   const char *interface_help; /**< @brief Specify a local interface as RLOC of LISP encapsulated packets help description.  */
+  const char *clear_help; /**< @brief Clear EID Map Cache help description.  */
   
   unsigned int help_given ;	/**< @brief Whether help was given.  */
   unsigned int version_given ;	/**< @brief Whether version was given.  */
@@ -82,8 +83,10 @@ struct gengetopt_args_info
   unsigned int filter_prefix_given ;	/**< @brief Whether filter-prefix was given.  */
   unsigned int list_given ;	/**< @brief Whether list was given.  */
   unsigned int interface_given ;	/**< @brief Whether interface was given.  */
+  unsigned int clear_given ;	/**< @brief Whether clear was given.  */
 
   int addmode_mode_counter; /**< @brief Counter for mode addmode */
+  int clearcache_mode_counter; /**< @brief Counter for mode clearcache */
   int delmode_mode_counter; /**< @brief Counter for mode delmode */
   int listmode_mode_counter; /**< @brief Counter for mode listmode */
   int printmode_mode_counter; /**< @brief Counter for mode printmode */

@@ -608,6 +608,32 @@ int make_dsock_addr(const char *dsock_name, struct sockaddr_un *dsock_addr)
 }
 
 /*
+ * send_clear_command
+ *
+ * Send command to clear the map cache.
+ */
+int send_clear_command(struct gengetopt_args_info *args_info)
+{
+    lisp_cmd_t *cmd;
+    int cmd_length = sizeof(lisp_cmd_t);
+    int retval ;
+
+    cmd = (lisp_cmd_t *)malloc(cmd_length);
+    if (!cmd) {
+        return -1;
+    }
+
+    cmd->length = 0;
+    cmd->type = LispMapCacheClear;
+
+    retval = send_command(cmd, cmd_length);
+    if (retval >= 0) {
+        printf("Cache cleared.\n");
+    }
+    return(retval);
+}
+
+/*
  * send_print_command
  *
  * Send a request to the kernel module to print the contents
@@ -941,16 +967,13 @@ int main(int argc, char **argv)
         add_entry(&args_info);
         close(dsock_fd);
         unlink(LispClientIPCFile);
-
         exit(0);
     }
 
     if (args_info.print_given) {
         send_print_command(&args_info);
-
         close(dsock_fd);
         unlink(LispClientIPCFile);
-
         exit(0);
     }
 
@@ -958,7 +981,6 @@ int main(int argc, char **argv)
         set_rloc_interface(&args_info);
         close(dsock_fd);
         unlink(LispClientIPCFile);
-
         exit(0);
     }
 
@@ -966,10 +988,15 @@ int main(int argc, char **argv)
         send_list_command(&args_info);
         close(dsock_fd);
         unlink(LispClientIPCFile);
+        exit(0);
+    }
 
+    if (args_info.clear_given) {
+        send_clear_command(&args_info);
+        close(dsock_fd);
+        unlink(LispClientIPCFile);
         exit(0);
     }
     unlink(LispClientIPCFile);
-
     return 0;
 }

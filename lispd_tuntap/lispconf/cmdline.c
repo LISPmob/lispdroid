@@ -48,6 +48,8 @@ const char *gengetopt_args_info_help[] = {
   "  -l, --list=STRING             List EIDs or RLOCS  (possible values=\"eids\", \n                                  \"rlocs\" default=`eids')",
   "\n Mode: rlocmode",
   "  -i, --interface=Linux network interface device name\n                                Specify a local interface as RLOC of LISP \n                                  encapsulated packets",
+  "\n Mode: clearcache",
+  "  -c, --clear                   Clear EID Map Cache",
     0
 };
 
@@ -69,7 +71,7 @@ static int
 cmdline_parser_required2 (struct gengetopt_args_info *args_info, const char *prog_name, const char *additional_error);
 
 const char *cmdline_parser_add_entry_values[] = {"db", "cache", 0}; /*< Possible values for add-entry. */
-const char *cmdline_parser_print_values[] = {"db", "cache", "dcache", "ccache", 0}; /*< Possible values for print. */
+const char *cmdline_parser_print_values[] = {"db", "cache", 0}; /*< Possible values for print. */
 const char *cmdline_parser_list_values[] = {"eids", "rlocs", 0}; /*< Possible values for list. */
 
 static char *
@@ -90,7 +92,9 @@ void clear_given (struct gengetopt_args_info *args_info)
   args_info->filter_prefix_given = 0 ;
   args_info->list_given = 0 ;
   args_info->interface_given = 0 ;
+  args_info->clear_given = 0 ;
   args_info->addmode_mode_counter = 0 ;
+  args_info->clearcache_mode_counter = 0 ;
   args_info->delmode_mode_counter = 0 ;
   args_info->listmode_mode_counter = 0 ;
   args_info->printmode_mode_counter = 0 ;
@@ -138,6 +142,7 @@ void init_args_info(struct gengetopt_args_info *args_info)
   args_info->filter_prefix_help = gengetopt_args_info_help[11] ;
   args_info->list_help = gengetopt_args_info_help[13] ;
   args_info->interface_help = gengetopt_args_info_help[15] ;
+  args_info->clear_help = gengetopt_args_info_help[17] ;
   
 }
 
@@ -330,6 +335,8 @@ cmdline_parser_dump(FILE *outfile, struct gengetopt_args_info *args_info)
     write_into_file(outfile, "list", args_info->list_orig, cmdline_parser_list_values);
   if (args_info->interface_given)
     write_into_file(outfile, "interface", args_info->interface_orig, 0);
+  if (args_info->clear_given)
+    write_into_file(outfile, "clear", 0, 0 );
   
 
   i = EXIT_SUCCESS;
@@ -678,10 +685,11 @@ cmdline_parser_internal (
         { "filter-prefix",	1, NULL, 'f' },
         { "list",	1, NULL, 'l' },
         { "interface",	1, NULL, 'i' },
+        { "clear",	0, NULL, 'c' },
         { 0,  0, 0, 0 }
       };
 
-      c = getopt_long (argc, argv, "hVa:e:r:p:w:t:x:f:l:i:", long_options, &option_index);
+      c = getopt_long (argc, argv, "hVa:e:r:p:w:t:x:f:l:i:c", long_options, &option_index);
 
       if (c == -1) break;	/* Exit from `while (1)' loop.  */
 
@@ -827,6 +835,19 @@ cmdline_parser_internal (
             goto failure;
         
           break;
+        case 'c':	/* Clear EID Map Cache.  */
+          args_info->clearcache_mode_counter += 1;
+        
+        
+          if (update_arg( 0 , 
+               0 , &(args_info->clear_given),
+              &(local_args_info.clear_given), optarg, 0, 0, ARG_NO,
+              check_ambiguity, override, 0, 0,
+              "clear", 'c',
+              additional_error))
+            goto failure;
+        
+          break;
 
         case 0:	/* Long option with no short option */
         case '?':	/* Invalid option.  */
@@ -841,6 +862,13 @@ cmdline_parser_internal (
 
 
 
+  if (args_info->addmode_mode_counter && args_info->clearcache_mode_counter) {
+    int addmode_given[] = {args_info->add_entry_given, args_info->eid_given, args_info->rloc_given, args_info->priority_given, args_info->weight_given, args_info->ttl_given,  -1};
+    const char *addmode_desc[] = {"--add-entry", "--eid", "--rloc", "--priority", "--weight", "--ttl",  0};
+    int clearcache_given[] = {args_info->clear_given,  -1};
+    const char *clearcache_desc[] = {"--clear",  0};
+    error += check_modes(addmode_given, addmode_desc, clearcache_given, clearcache_desc);
+  }
   if (args_info->addmode_mode_counter && args_info->listmode_mode_counter) {
     int addmode_given[] = {args_info->add_entry_given, args_info->eid_given, args_info->rloc_given, args_info->priority_given, args_info->weight_given, args_info->ttl_given,  -1};
     const char *addmode_desc[] = {"--add-entry", "--eid", "--rloc", "--priority", "--weight", "--ttl",  0};
@@ -861,6 +889,27 @@ cmdline_parser_internal (
     int rlocmode_given[] = {args_info->interface_given,  -1};
     const char *rlocmode_desc[] = {"--interface",  0};
     error += check_modes(addmode_given, addmode_desc, rlocmode_given, rlocmode_desc);
+  }
+  if (args_info->clearcache_mode_counter && args_info->listmode_mode_counter) {
+    int clearcache_given[] = {args_info->clear_given,  -1};
+    const char *clearcache_desc[] = {"--clear",  0};
+    int listmode_given[] = {args_info->list_given,  -1};
+    const char *listmode_desc[] = {"--list",  0};
+    error += check_modes(clearcache_given, clearcache_desc, listmode_given, listmode_desc);
+  }
+  if (args_info->clearcache_mode_counter && args_info->printmode_mode_counter) {
+    int clearcache_given[] = {args_info->clear_given,  -1};
+    const char *clearcache_desc[] = {"--clear",  0};
+    int printmode_given[] = {args_info->print_given, args_info->filter_prefix_given,  -1};
+    const char *printmode_desc[] = {"--print", "--filter-prefix",  0};
+    error += check_modes(clearcache_given, clearcache_desc, printmode_given, printmode_desc);
+  }
+  if (args_info->clearcache_mode_counter && args_info->rlocmode_mode_counter) {
+    int clearcache_given[] = {args_info->clear_given,  -1};
+    const char *clearcache_desc[] = {"--clear",  0};
+    int rlocmode_given[] = {args_info->interface_given,  -1};
+    const char *rlocmode_desc[] = {"--interface",  0};
+    error += check_modes(clearcache_given, clearcache_desc, rlocmode_given, rlocmode_desc);
   }
   if (args_info->listmode_mode_counter && args_info->printmode_mode_counter) {
     int listmode_given[] = {args_info->list_given,  -1};
