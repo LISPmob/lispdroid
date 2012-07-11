@@ -22,8 +22,8 @@
 int sock_fd = 0;
 
 const int LispIPCPathMax = 100;
-const char *LispServerIPCFile = "/data/data/com.le.lispmon/lispd_ipc_server";
-const char *LispClientIPCFile = "/data/data/com.le.lispmon/lispd_ipc_client";
+const char *LispServerIPCFile = "/data/data/com.le.lispmontun/lispd_ipc_server";
+const char *LispClientIPCFile = "/data/data/com.le.lispmontun/lispd_ipc_client";
 const int MaxIPCCommandLen = 1024;
 
 struct sockaddr_un client_addr;

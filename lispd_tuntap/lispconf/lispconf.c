@@ -24,14 +24,14 @@
 
 #include <sys/un.h>
 
-const int true = 1;
-const int false = 0;
-
 #define MAX_MSG_LENGTH 1024
 
 struct sockaddr_un server_sock;
 struct sockaddr_un client_sock;
 int dsock_fd, dclient_fd;
+
+const int true = 1;
+const int false = 0;
 
 /*
  * Globally reused socket parameters
@@ -276,7 +276,6 @@ int process_print_cache_responses(void)
     char *formatted_rloc = NULL;
     struct timeval uptime;
     struct timeval expiretime;
-    int retries = 2;
     struct timeval tv;
 
     tv.tv_sec = 1; /* 1 second timeout */
@@ -589,8 +588,8 @@ int process_print_db_responses(void)
 }
 
 #define LISP_DCACHE_PATH_MAX 100
-const char *LispServerIPCFile = "/data/data/com.le.lispmon/lispd_ipc_server";
-const char *LispClientIPCFile = "/data/data/com.le.lispmon/lispd_ipc_client";
+const char *LispServerIPCFile = "/data/data/com.le.lispmontun/lispd_ipc_server";
+const char *LispClientIPCFile = "/data/data/com.le.lispmontun/lispd_ipc_client";
 
 int make_dsock_addr(const char *dsock_name, struct sockaddr_un *dsock_addr)
 {
@@ -905,8 +904,6 @@ int main(int argc, char **argv)
 
     struct gengetopt_args_info args_info;
 
-    int i;
-
     /*
      * Parse command line options
      */
@@ -943,25 +940,36 @@ int main(int argc, char **argv)
     if (args_info.add_entry_given) {
         add_entry(&args_info);
         close(dsock_fd);
+        unlink(LispClientIPCFile);
+
         exit(0);
     }
 
     if (args_info.print_given) {
         send_print_command(&args_info);
+
         close(dsock_fd);
+        unlink(LispClientIPCFile);
+
         exit(0);
     }
 
     if (args_info.interface_given) {
         set_rloc_interface(&args_info);
         close(dsock_fd);
+        unlink(LispClientIPCFile);
+
         exit(0);
     }
 
     if (args_info.list_given) {
         send_list_command(&args_info);
         close(dsock_fd);
+        unlink(LispClientIPCFile);
+
         exit(0);
     }
+    unlink(LispClientIPCFile);
+
     return 0;
 }
