@@ -13,7 +13,6 @@ zadb root
 sleep 5
 zadb shell mount -o rw,remount /system
 zadb push ./lispd /system/bin/lispd
-zadb push ./lisp.ko /system/modules/lisp.ko
 zadb push ./lispconf /system/bin/lispconf
 zadb push ./lispmanager /system/bin/lispmanager
 zadb push ./busybox /system/bin/busybox

@@ -207,11 +207,11 @@ int get_process_lock(int pid)
         return FALSE;
     }
 
-    sprintf(pidString, "%d\n", pid);
-    write(fdlock, pidString, strlen(pidString));
     if (fcntl(fdlock, F_SETLK, &fl) == -1) {
         return FALSE;
     }
+    sprintf(pidString, "%d\n", pid);
+    write(fdlock, pidString, strlen(pidString));
     return TRUE;
 }
 

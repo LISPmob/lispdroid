@@ -257,11 +257,12 @@ static int install_default_route_v4(void)
  * This is done to override any changes that DHCP might make
  * out from under us.
  */
-static int delete_default_route_v4 (void)
+int delete_default_route_v4 (lispd_if_t *intf)
 {
     struct nlmsghdr *nlh;
     struct rtmsg    *rtm;
     struct rtattr  *rta;
+    int             ifindex;
     int             rta_len = 0;
     char   sndbuf[4096];
     char   addr_buf[128];
@@ -271,7 +272,7 @@ static int delete_default_route_v4 (void)
     sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
 
     if (sockfd < 0) {
-          log_msg(INFO, "Failed to connect to netlink socket for delete_default_route()");
+          log_msg(INFO, "Failed to connect to netlink socket for delete_default_route_v4()");
         return(FALSE);
     }
 
@@ -295,6 +296,42 @@ static int delete_default_route_v4 (void)
     // Address is already zeroed
     rta_len += rta->rta_len;
 
+    // Removing a device specific default with a gateway, not our
+    // tun/tap default.
+    if (intf) {
+        ifindex = intf->if_index;
+    } else {
+        ifindex = tun_ifindex;
+    }
+    /*
+     * Add the outgoing interface
+     */
+    rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
+    rta->rta_type = RTA_OIF;
+    rta->rta_len = sizeof(struct rtattr) + sizeof(ifindex); // if_index
+    memcpy(((char *)rta) + sizeof(struct rtattr), &ifindex,
+           sizeof(ifindex));
+    rta_len += rta->rta_len;
+
+    // Gateway address only applies to non TUN/TAP defaults.
+    if (intf) {
+        /*
+         * For IPv4, add the default gateway as well as the
+         * source preference. For IPv6 in IPv4 these items are not
+         * necessary. TBD: What happens with IPv6 in IPv6 or IPv4 in IPv6?
+         */
+
+        /*
+         * Add the gateway
+         */
+        rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
+        rta->rta_type = RTA_GATEWAY;
+        rta->rta_len = sizeof(struct rtattr) + sizeof(intf->default_gw.address.ip); // if_index
+        memcpy(((char *)rta) + sizeof(struct rtattr), &intf->default_gw.address.ip,
+               sizeof(intf->default_gw.address.ip));
+        rta_len += rta->rta_len;
+    }
+
     nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
     nlh->nlmsg_flags = NLM_F_REQUEST;
     nlh->nlmsg_type =  RTM_DELROUTE;
@@ -315,8 +352,13 @@ static int delete_default_route_v4 (void)
         close(sockfd);
         return(FALSE);
     }
-    log_msg(INFO, "Deleted default route via %s",
-           Tundev);
+    if (intf) {
+        log_msg(INFO, "Deleted default route via %s (%s)",
+                intf->name, inet_ntop(AF_INET, &intf->address.address.ip,
+                                      addr_buf, 128));
+    } else {
+        log_msg(INFO, "Deleted default route via %s", Tundev);
+    }
     close(sockfd);
     return(TRUE);
 }
@@ -409,7 +451,7 @@ static int install_default_route_v6(void)
 int tuntap_install_default_routes(void) {
 
     if (lispd_config.eid_address_v4.afi) {
-        if (!delete_default_route_v4()) {
+        if (!delete_default_route_v4(NULL)) {
             return(FALSE);
         }
         if (!install_default_route_v4()) {

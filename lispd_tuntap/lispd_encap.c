@@ -113,6 +113,7 @@ void lisp_encap4(char *packet_buf, int length, int locator_addr)
   struct iphdr *old_iph4 = (struct iphdr *)packet_buf;
   struct ip6_hdr *old_iph6 = (struct ip6_hdr *)packet_buf;
   struct lisphdr *lisph;
+  lispd_if_t     *primary_intf;
   char    *new_packet;
   uint32_t encap_size;
   uint32_t rloc = 0;
@@ -121,7 +122,14 @@ void lisp_encap4(char *packet_buf, int length, int locator_addr)
   //    rloc = get_rloc_address_from_skb(skb);
   //} else {
   //    if (globals.if_to_rloc_hash_table[0]) {
-  rloc = get_primary_interface()->address.address.ip.s_addr;
+  primary_intf = get_primary_interface();
+  if (primary_intf) {
+      rloc = get_primary_interface()->address.address.ip.s_addr;
+  } else {
+#ifdef DEBUG_PACKETS
+      log_msg(INFO, "No suitable interface to use as source RLOC, dropping.");
+#endif
+  }
   //    }
   //}
 

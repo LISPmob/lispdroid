@@ -671,8 +671,6 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
     char is_default         = TRUE;
     char src_is_set         = FALSE;
     unsigned int  oif_index = 0;
-    char addr_buf[128];
-    char addr_buf2[128];
 
     /*
      * Check if anything has happened to the default
@@ -687,6 +685,7 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
 
     for (; msg_len && RTA_OK(rta, msg_len); rta = RTA_NEXT(rta, msg_len))
     {
+
         switch (rta->rta_type) {
 
         case RTA_GATEWAY:
@@ -723,20 +722,22 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
      * about our own change earlier, in which case, ignore it.
      */
     if (gw && (gw->s_addr != primary_interface->default_gw.address.ip.s_addr) ||
-            (oif_index != primary_interface->if_index) ||
+            (primary_interface && (oif_index != primary_interface->if_index)) ||
             !src_is_set ||
-            (pref_src->s_addr != lispd_config.eid_address_v4.address.ip.s_addr)) {
+            (pref_src && (pref_src->s_addr != lispd_config.eid_address_v4.address.ip.s_addr))) {
 
         log_msg(INFO, "Default route has changed (possibly by DHCP), overriding.");
 
-#ifndef TUNTAP
         delete_default_route_v4(primary_interface);
+        update_map_server_routes();
+
+#ifndef TUNTAP
         install_default_routes(primary_interface, FALSE);
-    update_map_server_routes();
 #endif
     } else {
         log_msg(INFO, "Default route has not changed, ignoring.");
     }
+    log_msg(INFO, "Out");
 }
 
 /*

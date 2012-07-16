@@ -23,5 +23,4 @@
 extern int tun_receive_fd;
 void tuntap_process_input_packet(char *packet_buf, int length, void *source);
 void tuntap_process_output_packet(void);
-
-
+int delete_default_route_v4 (lispd_if_t *intf);
