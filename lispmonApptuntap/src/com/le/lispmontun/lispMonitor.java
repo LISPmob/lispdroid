@@ -179,8 +179,8 @@ public class lispMonitor extends Activity implements OnClickListener {
           };
 
         // Register the listener with the Location Manager to receive location updates
-        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+    //    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+    //    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
 
         // Set up the communication path to lispd. This will be extended to take over
         // from lispconf eventually.
@@ -249,9 +249,7 @@ public class lispMonitor extends Activity implements OnClickListener {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} 
-    	if (process != null) {
-    		process.destroy();
-    	}
+    	
     	return(output.toString());
     }
     
@@ -291,7 +289,7 @@ public class lispMonitor extends Activity implements OnClickListener {
     	
     	String psOutput = runTask("/system/bin/ps", "", false);
     	
-    	lispdRunning = psOutput.contains("R /system/bin/lispd") || psOutput.contains("S lispd"); // No zombies only running or sleeping.
+    	lispdRunning = psOutput.contains("R /system/bin/lispd") || psOutput.contains("S /system/bin/lispd"); // No zombies only running or sleeping.
     	
     	if (lispdRunning) {
     		lispCheckBoxLabel.setText(R.string.lispRunning);
@@ -379,6 +377,7 @@ public class lispMonitor extends Activity implements OnClickListener {
 			showMessage("Stop the LISP service?",
 					true, new Runnable() { public void run() {
 						killLispd();
+						lispdWasRunning = false;
 					}
 			});
 		}

@@ -152,7 +152,7 @@
 			    android:background="@drawable/generic_button"
 				android:layout_width="140dip"
 				android:layout_height="wrap_content"
-				android:layout_marginRight="4dip">
+				android:layout_marginRight="4dip" android:enabled="false" android:visibility="gone">
 				</Button>
 				
             <Button
