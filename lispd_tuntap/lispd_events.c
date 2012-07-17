@@ -407,19 +407,15 @@ void event_loop(void)
         }
 
         if (FD_ISSET(v4_receive_fd, &readfds)) {
-            log_msg(INFO, "Processing v4 input packet");
             process_lisp_msg(v4_receive_fd, AF_INET);
         }
         if (FD_ISSET(signal_fd, &readfds)) {
-            log_msg(INFO, "Processing event signal");
             process_event_signal();
         }
         if (FD_ISSET(rtnetlink_fd, &readfds)) {
-            log_msg(INFO, "Processing netlink notification");
             process_interface_notification();
         }
         if (FD_ISSET(tun_receive_fd, &readfds)) {
-            log_msg(INFO, "Processing output packet");
             tuntap_process_output_packet();
         }
     }
