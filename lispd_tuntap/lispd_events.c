@@ -212,8 +212,8 @@ int have_input(int max_fd, fd_set *readfds)
 
     struct timeval tv;
 
-    tv.tv_sec  = 0;
-    tv.tv_usec = DEFAULT_SELECT_TIMEOUT;
+    tv.tv_sec  = DEFAULT_SELECT_TIMEOUT;
+    tv.tv_usec = 0;
 
     if (select(max_fd+1,readfds,NULL,NULL,&tv) == -1) {
         if (errno == EINTR) {
@@ -258,7 +258,6 @@ int process_lisp_msg(int s, int afi)
 
 int process_event_signal(void)
 {
-    int  timertype = 0;
     int sig;
     int  bytes;
 
@@ -387,21 +386,17 @@ void event_loop(void)
      */
 
     log_msg(INFO, "tunnel fd in event_loop is: %d", tun_receive_fd);
-    max_fd = (v4_receive_fd > v6_receive_fd) ? v4_receive_fd : v6_receive_fd;
-  //  max_fd = (max_fd > netlink_fd)           ? max_fd : netlink_fd;
+    max_fd = v4_receive_fd;
     max_fd = (max_fd > signal_fd)            ? max_fd : signal_fd;
     max_fd = (max_fd > rtnetlink_fd)         ? max_fd : rtnetlink_fd;
     max_fd = (max_fd > tun_receive_fd)       ? max_fd : tun_receive_fd;
-    max_fd = (max_fd > data_receive_fd)      ? max_fd : data_receive_fd;
     for (EVER) {
+
         FD_ZERO(&readfds);
         FD_SET(v4_receive_fd, &readfds);
-   //     FD_SET(v6_receive_fd, &readfds);
-   //     FD_SET(netlink_fd, &readfds);
         FD_SET(signal_fd, &readfds);
         FD_SET(rtnetlink_fd, &readfds);
         FD_SET(tun_receive_fd, &readfds);
-        FD_SET(data_receive_fd, &readfds);
 
         retval = have_input(max_fd, &readfds);
         if (retval == -1) {
@@ -411,26 +406,22 @@ void event_loop(void)
             continue;        /* interrupted */
         }
 
-        if (FD_ISSET(v4_receive_fd, &readfds))
+        if (FD_ISSET(v4_receive_fd, &readfds)) {
+            log_msg(INFO, "Processing v4 input packet");
             process_lisp_msg(v4_receive_fd, AF_INET);
-     //   if (FD_ISSET(v6_receive_fd, &readfds)) {
-     //       process_lisp_msg(v6_receive_fd, AF_INET6);
-     //   }
-      //  if (FD_ISSET(netlink_fd, &readfds)) {
-      //      process_kernel_msg();
-      //  }
+        }
         if (FD_ISSET(signal_fd, &readfds)) {
+            log_msg(INFO, "Processing event signal");
             process_event_signal();
         }
         if (FD_ISSET(rtnetlink_fd, &readfds)) {
+            log_msg(INFO, "Processing netlink notification");
             process_interface_notification();
         }
         if (FD_ISSET(tun_receive_fd, &readfds)) {
+            log_msg(INFO, "Processing output packet");
             tuntap_process_output_packet();
         }
-       // if (FD_ISSET(data_receive_fd, &readfds)) {
-       //     process_input_packet(NULL, 0);
-       // }
     }
 }
 

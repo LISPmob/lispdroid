@@ -83,7 +83,7 @@
 #define	DEFAULT_MAP_REQUEST_RETRIES	3
 #define	DEFAULT_MAP_REGISTER_TIMEOUT	10	/* minutes */
 #define DEFAULT_DATA_CACHE_TTL		60	/* seconds */
-#define DEFAULT_SELECT_TIMEOUT		1000	/* ms */
+#define DEFAULT_SELECT_TIMEOUT		1	/* s */
 #define TRUE 1
 #define FALSE 0
 
