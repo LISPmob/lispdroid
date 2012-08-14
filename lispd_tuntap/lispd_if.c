@@ -889,10 +889,17 @@ int set_interface_mtu(lispd_if_t *intf)
     return(TRUE);
 }
 
-
+/*
+ * cleanup_routes()
+ *
+ * Restore the original routes used before LISP was enabled.
+ */
 void cleanup_routes() {
-    if (lispd_config.eid_address_v4.afi) {
-        log_msg(INFO, "Warning: default route restoration not implemented for TUN/TAP!"); // XXX Fix this.
+
+    if (tuntap_restore_default_routes()) {
+        log_msg(INFO, "Restored default routes.");
+    } else {
+        log_msg(ERROR, "Failed to restore default routes.");
     }
 }
 

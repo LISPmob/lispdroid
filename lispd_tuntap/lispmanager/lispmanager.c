@@ -45,6 +45,10 @@ int stopDaemon(void)
     char killstring[128];
     int status;
 
+    if (!lockFile) {
+        printf("lispd is already not running.\n");
+        return(-1);
+    }
     fscanf(lockFile, "%d", &pid);
     sprintf(killstring, "%s %d", killCommand, pid);
     status = system(killstring);

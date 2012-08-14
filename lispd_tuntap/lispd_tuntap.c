@@ -174,8 +174,10 @@ void tuntap_start_tun_recv(void)
  * install_default_route_v4()
  *
  * Set up the default route through the tunnel for ipv4.
+ * If restore is true, reinstall the default route through
+ * the cached gateway. This is during shutdown, for instance.
  */
-static int install_default_route_v4(void)
+static int install_default_route_v4(int restore)
 {
     struct nlmsghdr *nlh;
     struct rtmsg    *rtm;
@@ -186,6 +188,7 @@ static int install_default_route_v4(void)
     char   addr_buf2[128];
     int    retval;
     int    sockfd;
+    int    oif_index;
 
     sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
 
@@ -219,10 +222,35 @@ static int install_default_route_v4(void)
      */
     rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
     rta->rta_type = RTA_OIF;
-    rta->rta_len = sizeof(struct rtattr) + sizeof(tun_ifindex); // if_index
-    memcpy(((char *)rta) + sizeof(struct rtattr), &tun_ifindex,
-           sizeof(tun_ifindex));
+    rta->rta_len = sizeof(struct rtattr) + sizeof(int); // if_index
+
+    /*
+     * Restore previous outgoing interface
+     */
+    if (restore) {
+        oif_index = get_primary_interface()->if_index;
+    } else {
+        oif_index = tun_ifindex;
+    }
+    memcpy(((char *)rta) + sizeof(struct rtattr), &oif_index,
+           sizeof(int));
     rta_len += rta->rta_len;
+
+    /*
+     * Add the gateway if we are restoring
+     */
+    if (restore) {
+        lispd_if_t *intf = get_primary_interface();
+        if (!intf) {
+            return(FALSE);
+        }
+        rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
+        rta->rta_type = RTA_GATEWAY;
+        rta->rta_len = sizeof(struct rtattr) + sizeof(intf->default_gw.address.ip); // if_index
+        memcpy(((char *)rta) + sizeof(struct rtattr), &intf->default_gw.address.ip,
+               sizeof(intf->default_gw.address.ip));
+        rta_len += rta->rta_len;
+    }
 
     nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
     nlh->nlmsg_flags = NLM_F_REQUEST | (NLM_F_CREATE | NLM_F_REPLACE);
@@ -368,7 +396,7 @@ int delete_default_route_v4 (lispd_if_t *intf)
  *
  * Installs a default route through the TUN/TAP interface.
  */
-static int install_default_route_v6(void)
+static int install_default_route_v6(int restore)
 {
     struct nlmsghdr *nlh;
     struct rtmsg    *rtm;
@@ -378,6 +406,7 @@ static int install_default_route_v6(void)
     char   addr_buf2[128];
     int    retval;
     int    sockfd;
+    int    oif_index;
 
     sockfd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
 
@@ -411,9 +440,18 @@ static int install_default_route_v6(void)
      */
     rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
     rta->rta_type = RTA_OIF;
-    rta->rta_len = sizeof(struct rtattr) + sizeof(tun_ifindex); // if_index
-    memcpy(((char *)rta) + sizeof(struct rtattr), &tun_ifindex,
-           sizeof(tun_ifindex));
+    rta->rta_len = sizeof(struct rtattr) + sizeof(int); // if_index
+
+    /*
+     * Restore the route through the original interface?
+     */
+    if (restore) {
+        oif_index = get_primary_interface()->if_index;
+    } else {
+        oif_index = tun_ifindex;
+    }
+    memcpy(((char *)rta) + sizeof(struct rtattr), &oif_index,
+           sizeof(oif_index));
     rta_len += rta->rta_len;
 
     nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
@@ -454,12 +492,35 @@ int tuntap_install_default_routes(void) {
         if (!delete_default_route_v4(NULL)) {
             return(FALSE);
         }
-        if (!install_default_route_v4()) {
+        if (!install_default_route_v4(FALSE)) {
             return(FALSE);
         }
     }
     if (lispd_config.eid_address_v6.afi) {
-        if (!install_default_route_v6()) {
+        if (!install_default_route_v6(FALSE)) {
+            return(FALSE);
+        }
+    }
+    return(TRUE);
+}
+
+/*
+ * tuntap_restore_default_routes
+ *
+ * Restore the default routes that were in use before LISP
+ * was enabled. This is used during shutdown.
+ */
+int tuntap_restore_default_routes(void) {
+    if (lispd_config.eid_address_v4.afi) {
+        if (!delete_default_route_v4(NULL)) {
+            return(FALSE);
+        }
+        if (!install_default_route_v4(TRUE)) {
+            return(FALSE);
+        }
+    }
+    if (lispd_config.eid_address_v6.afi) {
+        if (!install_default_route_v6(TRUE)) {
             return(FALSE);
         }
     }
