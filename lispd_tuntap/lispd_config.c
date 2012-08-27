@@ -70,7 +70,7 @@ int handle_lispd_config_file(void)
 
     static cfg_opt_t map_server_opts[] = {
 	CFG_STR("address",		0, CFGF_NONE),
-	CFG_INT("key-type",		0, CFGF_NONE),
+        CFG_INT("key-type",		1, CFGF_NONE),
 	CFG_STR("key",			0, CFGF_NONE),
 	CFG_BOOL("proxy-reply",		cfg_false, CFGF_NONE),
 	CFG_BOOL("verify",		cfg_false, CFGF_NONE),
