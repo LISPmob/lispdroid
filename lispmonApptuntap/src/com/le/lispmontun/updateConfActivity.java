@@ -9,6 +9,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -20,6 +21,8 @@ import android.view.View;
 import android.content.DialogInterface;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
 
 
 public class updateConfActivity extends Activity {
@@ -37,6 +40,7 @@ public class updateConfActivity extends Activity {
 	public String InstanceID = "";
 	public boolean overrideDNS = false; 
 	public boolean useInstanceID = false;
+	public String keyType = "";
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -50,6 +54,15 @@ public class updateConfActivity extends Activity {
 		if ( !file.exists() ) {
 			createDefaultConfFile();
 		}
+		
+		Spinner spinner = (Spinner) findViewById(R.id.keyTypeSpinner);
+		// Create an ArrayAdapter using the string array and a default spinner layout
+		ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+		        R.array.keytypearray, android.R.layout.simple_spinner_item);
+		// Specify the layout to use when the list of choices appears
+		adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+		// Apply the adapter to the spinner
+		spinner.setAdapter(adapter);
 		
 		readConfFileAndFillParameters();
 		
@@ -70,25 +83,25 @@ public class updateConfActivity extends Activity {
 			while ( line != null ) {
 				text.append(line);
 				text.append("\n");
-				if (line.contains("eid-address-ipv4") && !line.contains("#")) {
+				if (line.contains("eid-address-ipv4") && !line.startsWith("#")) {
 					String[] tmp = line.split("=");
 					String[] tmp_1 = tmp[1].split(" ");
 					eidIPv4 = tmp_1[1];
 					EditText e = (EditText) findViewById(R.id.updateConfeid4Text);
 					e.setText(eidIPv4);
-				} else if (line.contains("eid-address-ipv6") && !line.contains("#")) {
+				} else if (line.contains("eid-address-ipv6") && !line.startsWith("#")) {
 					String[] tmp = line.split("=");
 					String[] tmp_1 = tmp[1].split(" ");
 					eidIPv6 = tmp_1[1];
 					EditText e = (EditText) findViewById(R.id.updateConfeid6Text);
 					e.setText(eidIPv6);
-				} else if (line.contains("map-resolver") && !line.contains("#")) {
+				} else if (line.contains("map-resolver") && !line.startsWith("#")) {
 					String[] tmp = line.split("=");
 					String[] tmp_1 = tmp[1].split(" ");
 					MR = tmp_1[1];
 					EditText e = (EditText) findViewById(R.id.updateConfMRText);
 					e.setText(MR);
-				} else if (line.contains("override-dns-primary") && !line.contains("#")) {	
+				} else if (line.contains("override-dns-primary") && !line.startsWith("#")) {	
 						String[] tmp = line.split("=");
 						String[] tmp2 = tmp[1].split(" ");
 						DNS1 = tmp2[1];
@@ -98,7 +111,7 @@ public class updateConfActivity extends Activity {
 						overrideDNS = true;
 						CheckBox c = (CheckBox)findViewById(R.id.updateConfDNSCheck);
 						c.setChecked(true);
-				} else if (line.contains("override-dns-secondary") && !line.contains("#")) {
+				} else if (line.contains("override-dns-secondary") && !line.startsWith("#")) {
 					String[] tmp = line.split("=");
 					String[] tmp2 = tmp[1].split(" ");
 					DNS2 = tmp2[1];
@@ -108,7 +121,7 @@ public class updateConfActivity extends Activity {
 					overrideDNS = true;
 					CheckBox c = (CheckBox)findViewById(R.id.updateConfDNSCheck);
 					c.setChecked(true);
-				} else if (line.contains("instance-id") && !line.contains("#")) {
+				} else if (line.contains("instance-id") && !line.startsWith("#")) {
 					String[] tmp = line.split("=");
 					String[] tmp2 = tmp[1].split(" ");
 					InstanceID = tmp2[1];
@@ -118,23 +131,39 @@ public class updateConfActivity extends Activity {
 					useInstanceID = true;
 					CheckBox c = (CheckBox)findViewById(R.id.updateConfUseInstance);
 					c.setChecked(true);
-				} else if (line.contains("map-server") && !line.contains("#")) {
+				} else if (line.contains("map-server") && !line.startsWith("#")) {
 					boolean flg1=false, flg2=false;
 					do {
 						String line_1 = br.readLine();
 						text.append(line_1);
 						text.append("\n");
-						if (line_1.contains("address") && !line_1.contains("#")) {
+						if (line_1.contains("address") && !line_1.startsWith("#")) {
 							String[] tmp = line_1.split("=");
 							String[] tmp_1 = tmp[1].split(" ");
 							MS = tmp_1[1];
 							flg1 = true;
-						} else if (line_1.contains("key") && !line_1.contains("#")) {
+						} else if (line_1.contains("key-type") && !line_1.startsWith("#")) {
+							Scanner scanner = new Scanner(line_1);
+							scanner.useDelimiter("=");
+							Spinner spinner = (Spinner) findViewById(R.id.keyTypeSpinner);
+							 if ( scanner.hasNext() ){
+							      String name = scanner.next();
+							      String value = scanner.next();
+							     
+							      if (value.contains("0")) {
+							    	  spinner.setSelection(0);
+							    	  keyType = "0";
+							      } else if (value.contains("1")) {
+							    	  spinner.setSelection(1);
+							    	  keyType = "1";
+							      }
+							    }
+						} else if (line_1.contains("key") && !line_1.startsWith("#")) {
 							String[] tmp = line_1.split("=");
 							String[] tmp_1 = tmp[1].split(" ");
 							MSKey = tmp_1[1];
 							flg2 = true;
-						}
+						} 
 					} while (flg1 == false || flg2 == false);
 					
 					EditText e = (EditText) findViewById(R.id.updateConfMSText);
@@ -183,7 +212,7 @@ public class updateConfActivity extends Activity {
 			          .append("#\n")
 			          .append("map-server {\n")
 			          .append("        address	    = 198.6.255.40\n")
-			          .append("        key-type    = 0		                # cleartext\n")
+			          .append("        key-type    = 1		                # SHA1\n")
 			          .append("        key	    = chris-mn\n")
 			          .append("	       verify	    = off	                # on --> lig(self)\n")
 			          .append("	proxy-reply = on	                # ask ms to proxy reply\n")
@@ -448,7 +477,7 @@ public class updateConfActivity extends Activity {
 	
 	public String replace_if_required_ms(String str)
 	{
-		Pattern msPtrn = Pattern.compile("^(\\s*)(\\S*)(\\s*)address(\\s*)=(\\s*)(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})(\\s*)");
+		Pattern msPtrn = Pattern.compile("^(\\s*)(\\S*)(\\s*)address(\\s*)=(\\d{1,3}).(\\d{1,3}).(\\d{1,3}).(\\d{1,3})(\\s*)");
 		Matcher msMtchr = msPtrn.matcher(str);
 		if (msMtchr.matches()) {
 			String[] tmp_1 = str.split("=");
@@ -482,6 +511,28 @@ public class updateConfActivity extends Activity {
 		return out;
 	}
 	
+	public String replace_if_required_ms_keytype(String str)
+	{
+		
+		String out = str;
+		
+		if (str.contains("key-type")) {
+			Spinner spinner = (Spinner)findViewById(R.id.keyTypeSpinner);
+			String value = spinner.getSelectedItem().toString();
+			String replacer = "";
+			if (value.contains("Cleartext")) {
+				replacer = "key-type = 0";
+				keyType = "0";
+			} else if (value.contains("SHA1")) {
+				replacer = "key-type = 1";
+				keyType = "1";
+			}
+			out = replacer;
+			keyType = replacer;
+		}
+		return out;
+	}
+	
 	public String replace_parameters(String str) 
 	{
 		StringBuilder out = new StringBuilder();
@@ -499,6 +550,7 @@ public class updateConfActivity extends Activity {
 			tmp[i] = replace_if_required_primary_dns(tmp[i]);
 			tmp[i] = replace_if_required_secondary_dns(tmp[i]);
 			tmp[i] = replace_if_required_instance_id(tmp[i]);
+			tmp[i] = replace_if_required_ms_keytype(tmp[i]);
 
 			if (tmp[i].contains("override-dns-primary")) {
 				DNSWasfound = true;

@@ -24,5 +24,8 @@
     <string name="updateConfMRString">Map-Resolver:</string> 
     <string name="updateConfMSString">Map-Server:</string>
     <string name="updateConfMSKeyString">Map-Server Key:</string>
-    
+    <string-array name="keytypearray">
+        <item>Cleartext</item>
+        <item>SHA1</item>
+    </string-array>
 </resources>
