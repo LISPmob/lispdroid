@@ -7,4 +7,5 @@ cp ../../out/target/product/crespo/obj/EXECUTABLES/lispconf_intermediates/LINKED
 cp ../../out/target/product/crespo/obj/EXECUTABLES/lispmanager_intermediates/LINKED/lispmanager releasedir
 cp ../lispmonApptuntap/bin/classes/"LISP Monitor TUNTAP.apk" releasedir/lispmonApp.apk
 cp release_install.sh releasedir/install.sh
+cp release_inhelper.sh releasedir/inhelper.sh
 cp ../busybox-1.18.4/busybox releasedir

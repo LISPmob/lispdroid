@@ -454,7 +454,7 @@ unsigned int lisp_output6(char *packet_buf, int length)
    */
 
   /*
-   * Eventually, when supporting ipv6/ipv6 or v4 or v6, we
+   * Eventually, when supporting ipv6/ipv6 or v4 over v6, we
    * will need to escape LISP control messages, like in lisp_output4.
    * XXX
    */
@@ -587,7 +587,6 @@ unsigned int lisp_output4(char *packet_buf, int length)
           (ntohs(udh->source) == LISP_ENCAP_PORT) ||
           (ntohs(udh->dest) == LISP_ENCAP_PORT) ) {
 
-          // Undo the pull
 #ifdef DEBUG_PACKETS
           log_msg(INFO, "      Packet looks like lisp control: dstprt %d, srcprt %d\n",
                  ntohs(udh->dest), ntohs(udh->source));
@@ -600,7 +599,6 @@ unsigned int lisp_output4(char *packet_buf, int length)
                  ntohs(udh->source));
 #endif
       }
-       // Undo the pull
     }
 
   /*

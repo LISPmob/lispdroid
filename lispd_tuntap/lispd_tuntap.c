@@ -20,13 +20,16 @@
 #include "lispd_encap.h"
 #include "lispd_decap.h"
 #include "lispd_tuntap.h"
+#include "lispd_syslog.h"
 #include "packettypes.h"
 
 const char *Tundev = "lisp_tun";
 const unsigned int TunReceiveSize = 2048; // Should probably tune to match largest MTU
+const int TunRouteIPV6Metric = 512;
 int tun_receive_fd = 0;
 int tun_ifindex = 0;
 char *tun_receive_buf = NULL;
+
 
 int tuntap_set_eids(void);
 int tuntap_create_tun() {
@@ -141,13 +144,17 @@ void tuntap_process_output_packet(void)
 
     nread = read(tun_receive_fd, tun_receive_buf, TunReceiveSize);
 
+    log_msg(INFO, "In tuntap_process_output_packet");
+
     ipversion = (tun_receive_buf[0] & 0xf0) >> 4;
     switch (ipversion) {
 
     case 4:
+        log_msg(INFO, "V4 output");
         lisp_output4(tun_receive_buf, nread);
         break;
     case 6:
+        log_msg(INFO, "V6 output");
         lisp_output6(tun_receive_buf, nread);
         break;
     }
@@ -438,9 +445,6 @@ static int install_default_route_v6(int restore)
     /*
      * Add the outgoing interface
      */
-    rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
-    rta->rta_type = RTA_OIF;
-    rta->rta_len = sizeof(struct rtattr) + sizeof(int); // if_index
 
     /*
      * Restore the route through the original interface?
@@ -449,10 +453,27 @@ static int install_default_route_v6(int restore)
         oif_index = get_primary_interface()->if_index;
     } else {
         oif_index = tun_ifindex;
+
+        /*
+         * Override the metric
+         */
+        rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
+        rta->rta_type = RTA_PRIORITY;
+        rta->rta_len = sizeof(struct rtattr) + sizeof(int);
+        int metric = TunRouteIPV6Metric;
+        memcpy(((char *)rta) + sizeof(struct rtattr), &metric,
+               sizeof(metric));
+        rta_len += rta->rta_len;
     }
+    rta = (struct rtattr *)(((char *)rta) + rta->rta_len);
+    rta->rta_type = RTA_OIF;
+    rta->rta_len = sizeof(struct rtattr) + sizeof(int); // if_index
+
     memcpy(((char *)rta) + sizeof(struct rtattr), &oif_index,
            sizeof(oif_index));
     rta_len += rta->rta_len;
+
+
 
     nlh->nlmsg_len =   NLMSG_LENGTH(rta_len);
     nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_REPLACE;
@@ -519,11 +540,13 @@ int tuntap_restore_default_routes(void) {
             return(FALSE);
         }
     }
+#ifdef RESTORE_IPV6_DEFAULT // Don't do this until native ipv6 exists
     if (lispd_config.eid_address_v6.afi) {
         if (!install_default_route_v6(TRUE)) {
             return(FALSE);
         }
     }
+#endif
     return(TRUE);
 }
 

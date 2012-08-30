@@ -403,7 +403,7 @@ void map_register(timer *t, void *arg)
                 ms = lispd_config.map_servers;
 
                 while (ms) {
-                    map_register_pkt->key_id = ms->key_type;
+                    map_register_pkt->key_id = htons(ms->key_type);
                     if (!send_map_register(ms,
                                            map_register_pkt,
                                            locator_chain->mrp_len)) {

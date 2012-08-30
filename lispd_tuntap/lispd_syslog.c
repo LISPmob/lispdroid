@@ -50,6 +50,8 @@ void log_msg(int level, char *format, ...)
         va_end(argptr);
 
         fflush(logfile);
+    } else {
+        printf("ASSERT: Unknown log level passed to log_msg, %d", level);
     }
 }
 
