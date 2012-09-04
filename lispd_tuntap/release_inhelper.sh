@@ -23,7 +23,7 @@ bblink killall
 busybox mv /sdcard/lispd /system/bin/
 busybox mv /sdcard/lispconf /system/bin/
 busybox mv /sdcard/lispmanager /system/bin/
-chown root lispd lispconf lispmanager
-chmod 755 lispd lispconf
+chown root /system/bin/lispd /system/bin/lispconf /system/bin/lispmanager
+chmod 755 /system/bin/lispd /system/bin/lispconf
 chmod 4755 /system/bin/lispmanager
 exit 0

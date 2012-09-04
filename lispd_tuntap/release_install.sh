@@ -17,6 +17,8 @@ if [ $? != 0 ]; then
     zadb push ./lispconf /system/bin/lispconf
     zadb push ./lispmanager /system/bin/lispmanager
     zadb push ./busybox /system/bin/busybox
+    zadb shell chmod 755 /system/bin/lispd
+    zadb shell chmod 755 /system/bin/lispconf
     zadb shell chmod 4755 /system/bin/lispmanager
     zadb shell chmod 4755 /system/bin/busybox
 else
