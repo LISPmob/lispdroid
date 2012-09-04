@@ -369,36 +369,20 @@ int isfqdn(char *s)
  *      get_lisp_afi
  *
  *      Map from Internet AFI -> LISP_AFI, and determine
- *      the length of the encoding, including whatever
- *      LCAF encodings the configuration specifies.
- *
- *      Pass in a length argument if you want to find out
- *      what the encoded length of the address would be,
- *      including various LCAF's. (Currently this only
- *      works for EIDs, this will need to be updated
- *      if RLOC address lengths are needed as well).
+ *      the length of the encoding.
  *
  */
 int get_lisp_afi(int afi, uint32_t *len)
 {
-    if (len) {
-        if (lispd_config.use_instance_id) {
-            *len = sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_instance_lcaf_t);
-        }
-
-        if (lispd_config.use_location) {
-            *len += sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_location_lcaf_t);
-        }
-    }
 
     switch(afi) {
     case AF_INET:
         if (len)
-            *len += sizeof(struct in_addr);
+            *len = sizeof(struct in_addr);
         return(LISP_AFI_IP);
     case AF_INET6:
         if (len)
-            *len += sizeof(struct in6_addr);
+            *len = sizeof(struct in6_addr);
         return(LISP_AFI_IPV6);
     default:
         log_msg(INFO, "get_lisp_afi: uknown AFI (%d)", afi);
@@ -422,7 +406,7 @@ int lisp2inetafi(int afi)
     case LISP_AFI_IPV6:
         return(AF_INET6);
     default:
-        log_msg(INFO, "lisp2inet_afi: uknown AFI (%d)", afi);
+        log_msg(INFO, "lisp2inet_afi: unknown AFI (%d)", afi);
         return(0);
     }
     return(0);

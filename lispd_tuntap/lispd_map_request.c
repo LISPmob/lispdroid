@@ -104,7 +104,7 @@ uint8_t *encapsulate_control_msg(uint8_t *original_msg,
      * caclulate sizes of interest
      */
     packet_len = sizeof(lispd_pkt_encapsulated_control_t) + msg_len;
-    *new_len       = packet_len;				    /* return this */
+    *new_len       = packet_len;
 
     if ((packet = (uint8_t *)malloc(packet_len)) == NULL) {
         log_msg(INFO,"malloc(packet_len): %s", strerror(errno));
@@ -287,6 +287,13 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
         sizeof(lispd_pkt_map_request_eid_prefix_record_t) +
         eid_len;					    /* len of EID prefix */
 
+    /*
+     * Account for optional encodings
+     */
+    if (lispd_config.use_instance_id) {
+        udp_len += 2 * (sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_instance_lcaf_t));
+    }
+
     ip_len     = ip_header_len + udp_len;
     packet_len = ip_len;
     *len       = packet_len;				    /* return this */
@@ -365,7 +372,6 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
      * finally, the requested EID prefix, wrap in instance ID LCAF if
      * necessary.
      */
-
     eid_rec = (lispd_pkt_map_request_eid_prefix_record_t *)CO(cur_ptr, alen);
     eid_rec->eid_prefix_mask_length = eid_prefix_length;
     if (!encode_eid_for_map_record((char *)&(eid_rec->eid_prefix_afi), *eid_prefix, eid_afi, eid_len)) {
@@ -470,6 +476,7 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
                                    &nonce,
                                    NormalRequest,
                                    NULL);
+
     if (!packet) {
         inet_ntop(eid_prefix->afi, &eid_prefix->address, addr_buf, sizeof(addr_buf));
         log_msg(INFO,

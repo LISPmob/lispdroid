@@ -173,6 +173,7 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
     int eid_addr_offset = 0;
     int eid_afi = 0;
     int total_addr_offset = 0;
+    int instance_id = 0;
     lispd_pkt_map_reply_eid_prefix_record_t *curr_eid = records;
     lisp_eid_map_msg_t *cache_msg;
     lispd_pkt_lcaf_t *lcaf;
@@ -180,7 +181,6 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
     lispd_pkt_instance_lcaf_t *instance_lcaf;
     uchar *curr_eid_addr_ptr;
     char addr_buf[128];
-    int i;
 
     for (eid_counter = 0; eid_counter < count; eid_counter++) {
 
@@ -189,10 +189,6 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
                    total_addr_offset); // XXX what about locator sizes? Not sure this works with > 1 eid XXX
 
         eid_afi = ntohs(curr_eid->eid_afi);
-
-        log_msg(INFO, "  EID: %s/%d, ttl %u, act: %d auth: %d, locators: %d",
-               inet_ntop(lisp2inetafi(eid_afi), curr_eid->eid_prefix, addr_buf, 128), curr_eid->eid_masklen,
-               ntohl(curr_eid->ttl), curr_eid->act, curr_eid->authoritative, curr_eid->loc_count);
 
         /*
          * Are we expecting instance ID?
@@ -216,6 +212,7 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
                         ntohl(instance_lcaf->instance), lispd_config.instance_id);
                 break;
             }
+            instance_id = ntohl(instance_lcaf->instance);
             lcaf_addr = (lispd_pkt_lcaf_addr_t *)instance_lcaf->address;
 
             eid_afi = htons(lcaf_addr->afi);
@@ -224,7 +221,7 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
                     sizeof(lispd_pkt_instance_lcaf_t); // Account for LCAF sizes. EID address sizes accounted below
         } else {
             curr_eid_addr_ptr = (uchar *)&curr_eid->eid_prefix;
-        }
+        }     
 
         if (eid_afi == LISP_AFI_IP) {
             eid_addr_offset += sizeof(struct in_addr);
@@ -234,6 +231,13 @@ int process_map_reply_eid_records(lispd_pkt_map_reply_eid_prefix_record_t *recor
             log_msg(INFO, "    Unknown LISP AFI %d in EID entry, skipping", eid_afi);
             break;
         }
+
+        // LCAF breaks inet_ntop
+        log_msg(INFO, "  EID: %s/%d, iid: %d, ttl %u, act: %d auth: %d, locators: %d",
+                inet_ntop(lisp2inetafi(eid_afi), curr_eid_addr_ptr, addr_buf, 128),
+                curr_eid->eid_masklen, instance_id,
+                ntohl(curr_eid->ttl), curr_eid->act, curr_eid->authoritative,
+                curr_eid->loc_count);
 
         // Grab a message buffer of appropriate size
         cache_msg = (lisp_eid_map_msg_t *)malloc(sizeof(lisp_eid_map_msg_t) +

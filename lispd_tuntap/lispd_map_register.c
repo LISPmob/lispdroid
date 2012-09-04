@@ -196,6 +196,12 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
                                                          * locator_chain->locator_count
 							 * locators
                                                          */
+    /*
+     * Account for optional encodings
+     */
+    if (lispd_config.use_instance_id) {
+        mrp_len += 2 * (sizeof(lispd_pkt_lcaf_t) + sizeof(lispd_pkt_instance_lcaf_t));
+    }
 
     if ((mrp = (lispd_pkt_map_register_t *)malloc(mrp_len)) == NULL) {
         log_msg(INFO, "malloc (map-register packet): %s", strerror(errno));
