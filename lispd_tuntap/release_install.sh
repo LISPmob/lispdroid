@@ -28,6 +28,6 @@ else
     zadb push ./lispmanager /sdcard/
     zadb push ./busybox /sdcard/
     zadb push ./inhelper.sh /sdcard/
-    zadb shell "su -c 'sh -x /sdcard/inhelper.sh'"
+    zadb shell "su -c 'sh /sdcard/inhelper.sh'"
 fi
 zadb install -r ./lispmonApp.apk

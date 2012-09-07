@@ -24,8 +24,6 @@
 #define LISP_CONTROL_PORT 4342
 #define LISP_ENCAP_PORT 4341
 
-//extern lisp_globals globals;
-
 static inline uint16_t src_port_hash(struct iphdr *iph)
 {
   uint16_t result = 0;
@@ -118,10 +116,12 @@ void lisp_encap4(char *packet_buf, int length, int locator_addr)
   uint32_t encap_size;
   uint32_t rloc = 0;
 
-  //if (globals.multiple_rlocs) {
-  //    rloc = get_rloc_address_from_skb(skb);
-  //} else {
-  //    if (globals.if_to_rloc_hash_table[0]) {
+#ifdef MULTIPLE_RLOCS
+  if (globals.multiple_rlocs) {
+      rloc = get_rloc_address_from_skb(skb);
+  } else {
+      if (globals.if_to_rloc_hash_table[0]) {
+#endif
   primary_intf = get_primary_interface();
   if (primary_intf) {
       rloc = get_primary_interface()->address.address.ip.s_addr;
@@ -130,14 +130,15 @@ void lisp_encap4(char *packet_buf, int length, int locator_addr)
       log_msg(INFO, "No suitable interface to use as source RLOC, dropping.");
 #endif
   }
-  //    }
-  //}
+#ifdef MULTIPLE_RLOCS
+      }
+  }
+#endif
 
   if (!rloc) {
       log_msg(INFO, "Unable to determine source rloc");
       return;
   }
-
 
   /*
    * Handle fragmentation XXX 
@@ -169,10 +170,10 @@ void lisp_encap4(char *packet_buf, int length, int locator_addr)
   /*
    * Using instance ID? Or it in.
    */
- // if (globals.use_instance_id) {
- //     lisph->instance_id = 1;
- //     lisph->lsb_bits |= htonl(globals.instance_id << 8);
- // }
+  if (lispd_config.use_instance_id) {
+      lisph->instance_id = 1;
+      lisph->lsb_bits |= htonl(lispd_config.instance_id << 8);
+  }
 
   lisph->nonce_present = 1;
   lisph->nonce[0] = random() & 0xFF;

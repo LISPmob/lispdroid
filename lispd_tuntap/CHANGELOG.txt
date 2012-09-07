@@ -1,0 +1,13 @@
+0.5.8
+-------------------------------------------------------
+
+- Fix missing IID encapsulation
+- Quiet down install script
+- Fix error in calculating lengths for LCAF encodings. (Found by Vince 
+during Instance-ID testing).
+
+0.5.7
+-------------------------------------------------------
+
+- Do not attempt to restore ipv6 default route if one didn't exist previously.
+- Set TUN/TAP default route through ipv6 with a better metric in case one does exist.
