@@ -9,3 +9,4 @@ cp ../lispmonApptuntap/bin/classes/"LISP Monitor TUNTAP.apk" releasedir/lispmonA
 cp release_install.sh releasedir/install.sh
 cp release_inhelper.sh releasedir/inhelper.sh
 cp ../busybox-1.18.4/busybox releasedir
+cp CHANGELOG.txt releasedir
