@@ -11,6 +11,6 @@
 #include "lispd_timers.h"
 
 int process_map_reply(lispd_pkt_map_reply_t *pkt);
-void retry_map_requests(timer *, void *);
+int retry_map_requests(timer *, void *);
 void send_map_reply(lispd_pkt_map_request_t *pkt,
                     struct sockaddr_in *source);

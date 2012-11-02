@@ -87,8 +87,8 @@ void update_map_server_routes(void);
 int send_lisp_echo_request(lispd_if_t *intf);
 int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport);
 inline int is_nat_complete(lispd_if_t *intf);
-void check_nat_status(timer *, void *);
-void check_default_gateway(timer *, void *);
+int check_nat_status(timer *, void *);
+int check_default_gateway(timer *, void *);
 void cleanup_routes(void);
 
 

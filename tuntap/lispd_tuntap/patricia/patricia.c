@@ -257,7 +257,7 @@ prefix_t * ascii2prefix (int family, char *string)
 	memcpy (save, string, cp - string);
 	save[cp - string] = '\0';
 	string = save;
-	if (bitlen < 0 || bitlen > maxbitlen)
+        if (bitlen > maxbitlen)
 	    bitlen = maxbitlen;
     }
     else {
@@ -605,7 +605,7 @@ patricia_lookup (patricia_tree_t *patricia, prefix_t *prefix)
     patricia_node_t *node, *new_node, *parent, *glue;
     u_char *addr, *test_addr;
     u_int bitlen, check_bit, differ_bit;
-    int i, j, r;
+    u_int i, j, r;
 
     assert (patricia);
     assert (prefix);
@@ -960,7 +960,7 @@ lookup_then_remove (patricia_tree_t *tree, int afi, char *string)
 {
     patricia_node_t *node;
 
-    if (node = try_search_exact (tree, afi, string))
+    if ((node = try_search_exact (tree, afi, string)))
         patricia_remove (tree, node);
 }
 

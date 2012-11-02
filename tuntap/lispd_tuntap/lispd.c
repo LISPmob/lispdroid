@@ -47,6 +47,8 @@
 #include "lispd_syslog.h"
 #include "lispd_map_register.h"
 #include "lispd_timers.h"
+#include "lispd_util.h"
+#include "lispd_tuntap.h"
 #include "tables.h"
 #include "version.h"
 
@@ -362,7 +364,7 @@ int main(int argc, char **argv)
     map_register(NULL, NULL);
     setup_probe_timer();
 
-    // Open up the data plane
+    // Open up the data plane (done in the event loop for now, due to NAT port issues)
     // start_tun_recv();
 
     clear_map_cache();

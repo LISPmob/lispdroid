@@ -9,4 +9,4 @@
 
 #pragma once
 
-void lisp_input(char *, int, void *);
+void lisp_input(uint8_t *, int, void *);

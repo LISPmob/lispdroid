@@ -365,7 +365,7 @@ lispd_pkt_map_register_t *build_map_register_pkt (lispd_locator_chain_t *locator
  *	map_server_register (tree)
  *
  */
-void map_register(timer *t, void *arg)
+int map_register(timer *t, void *arg)
 {
 
     patricia_tree_t           *all_afi_dbs[2] = { AF4_database,
@@ -388,7 +388,7 @@ void map_register(timer *t, void *arg)
 
     if (!lispd_config.map_servers) {
         log_msg(INFO, "No Map Servers conifgured!");
-        return;
+        return(0);
     }
 
     while (afi_count < 2) {
@@ -399,7 +399,7 @@ void map_register(timer *t, void *arg)
                 if ((map_register_pkt =
                      build_map_register_pkt(locator_chain)) == NULL) {
                     log_msg(INFO, "Couldn't build map register packet");
-                    return;
+                    return(0);
                 }
 
                 /*
@@ -426,5 +426,5 @@ void map_register(timer *t, void *arg)
     }
 
     log_msg(INFO, "Map-register sent, interval reset");
-    return;
+    return(0);
 }

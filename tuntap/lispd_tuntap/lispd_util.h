@@ -38,6 +38,7 @@ int isfqdn(char *s);
  */
 int  dump_database(patricia_tree_t *tree, int afi, FILE *fp);
 void dump_database_entry(lispd_locator_chain_t *locator_chain, lispd_locator_chain_elt_t *db_entry, FILE *fp);
+void dump_interfaces(FILE *fp);
 void dump_map_resolvers(void);
 void dump_map_servers(void);
 void dump_map_server(lispd_map_server_list_t *ms);

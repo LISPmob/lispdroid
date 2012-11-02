@@ -27,3 +27,4 @@ void process_map_request(lispd_pkt_map_request_t *pkt,
 void schedule_solicit_map_requests(void);
 void setup_probe_timer(void);
 void schedule_map_requests(void);
+uint8_t *decapsulate_ecm_packet(uint8_t *);

@@ -89,7 +89,7 @@ void check_locator_bits(struct lisphdr *lisp_hdr,
  * Packet entry point into LISP processing. Decapsulate and handle
  * any cache updates and disposition.
  */
-void lisp_input(char *packet_buf, int length, void *source)
+void lisp_input(uint8_t *packet_buf, int length, void *source)
 {
   struct iphdr *iph;
   struct ip6_hdr *ip6;

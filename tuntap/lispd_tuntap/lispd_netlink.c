@@ -670,27 +670,13 @@ int register_lispd_process(void)
  * sends a list of all RLOCs within the EIDs
  * that had traffic.
  */
-void start_smr_traffic_monitor(timer *tptr, void *arg)
+int start_smr_traffic_monitor(timer *tptr, void *arg)
 {
     lisp_cmd_t *cmd;
     int retval = 0;
 
-    // XXX: PENDING API REWRITE
-    return;
-
-    if ((cmd = malloc(sizeof(lisp_cmd_t))) == 0) {
-        log_msg(INFO, "request_rloc_list -- malloc failed");
-        return(0);
-    }
-    memset(cmd, 0, sizeof(lisp_cmd_t));
-
-    cmd->type = LispTrafficMonStart;
-    cmd->length = 0;
-    retval = send_command(cmd, sizeof(lisp_cmd_t));
-    free(cmd);
-
-    log_msg(INFO, "Requested start of kernel traffic monitoring for SMRs");
-    return(retval);
+    // XXX: Needs rewrite for TUNTAP
+    return(0);
 }
 
 /*

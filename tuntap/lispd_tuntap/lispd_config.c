@@ -11,6 +11,8 @@
  *	$Header: /usr/local/src/lispd/RCS/lispd_config.c,v 1.16 2010/04/21 23:32:08 root Exp $
  *
  */
+#include <sys/system_properties.h>
+#include <cutils/properties.h>
 #include "lispd_packets.h"
 #include "lispd_config.h"
 #include "lispd_util.h"
@@ -20,6 +22,7 @@
 lispd_config_t lispd_config;
 
 int set_petr_addr(char *);
+
 
 /*
  *	handle_lispd_command_line --
@@ -307,11 +310,6 @@ int set_petr_addr(char *petr_addr_str)
  */
 int set_instance_id(char *instance_str)
 {
-    lisp_cmd_t              *cmd;
-    lisp_set_instance_msg_t *msg;
-    int                      cmd_length = sizeof(lisp_cmd_t) + sizeof(lisp_set_instance_msg_t);
-
-
     if (!instance_str) {
         log_msg(INFO, "No instance ID configuration present.");
         return(FALSE);
@@ -319,26 +317,7 @@ int set_instance_id(char *instance_str)
 
     lispd_config.instance_id = atoi(instance_str);
 
-    if (!(cmd = (lisp_cmd_t *)malloc(sizeof(lisp_cmd_t) + sizeof(lisp_set_instance_msg_t)))) {
-        log_msg(ERROR, "Failed to allocate IPC message buffer for set instance id message");
-        return FALSE;
-    }
-
-    memset(cmd, 0, cmd_length);
-    msg = (lisp_set_instance_msg_t *)cmd->val;
-    msg->enable = TRUE;
-    msg->id = lispd_config.instance_id;
-    cmd->type = LispSetInstanceID;
-    cmd->length = sizeof(lisp_set_instance_msg_t);
-    if (send_command(cmd, cmd_length)) {
-        free(cmd);
-        log_msg(INFO, "Setting instance id to %d", lispd_config.instance_id);
-        return TRUE;
-    } else {
-        free(cmd);
-        log_msg(ERROR, "Failed to send set instance-id message to kernel");
-        return FALSE;
-    }
+    return(TRUE);
 }
 
 /*
@@ -461,46 +440,6 @@ int restore_dns_servers(void)
     }
     property_set("net.dns1", server_str1);
     return(TRUE);
-}
-
-/*
- * set_kernel_rloc()
- *
- * Set the address the kernel uses for sourcing encapsulated packets.
- */
-int set_kernel_rloc(lisp_addr_t *addr)
-{
-    lisp_set_rloc_msg_t  *rloc_msg;
-    lisp_cmd_t           *cmd;
-    int                   cmd_length = sizeof(lisp_cmd_t) + sizeof(lisp_set_rloc_msg_t) +
-            sizeof(rloc_t);
-    rloc_t               *rloc;
-
-    if (!addr) {
-        return FALSE;
-    }
-
-    if (!(cmd = (lisp_cmd_t *)malloc(cmd_length))) {
-       return FALSE;
-    }
-
-    memset(cmd, 0, cmd_length);
-    rloc_msg = (lisp_set_rloc_msg_t *)cmd->val;
-
-    rloc = (rloc_t *)rloc_msg->rlocs;
-    memcpy(&rloc->addr, addr, sizeof(lisp_addr_t));
-
-    rloc->if_index = 0;
-    rloc_msg->count = 1;
-    cmd->type = LispSetRLOC;
-    cmd->length = sizeof(lisp_set_rloc_msg_t) + sizeof(rloc_t);
-    if (send_command(cmd, cmd_length)) {
-        free(cmd);
-        return TRUE;
-    } else {
-        free(cmd);
-        return FALSE;
-    }
 }
 
 /*

@@ -32,6 +32,8 @@ lispd_if_t *primary_interface = NULL;
 timer *default_gw_check_timer = NULL;
 timer *nat_detect_retry_timer = NULL;
 
+int set_interface_mtu(lispd_if_t *intf);
+
 /*
  * is_nat_complete()
  *
@@ -162,7 +164,7 @@ int getifaddrs(ifaddrs **addrlist) {
         /*
          * Walk through everything it sent us
          */
-        for (; NLMSG_OK(rcvhdr, readlen); rcvhdr = NLMSG_NEXT(rcvhdr, readlen)) {
+        for (; NLMSG_OK(rcvhdr, (unsigned int)readlen); rcvhdr = NLMSG_NEXT(rcvhdr, readlen)) {
             switch (rcvhdr->nlmsg_type) {
             case NLMSG_DONE:
                 close(sockfd);
@@ -358,7 +360,7 @@ lispd_if_t *get_best_interface(void)
         log_msg(INFO, "Checking on %s as candidate best interface, flags 0x%x",
                current->name, current->flags);
         if ((checkflags == (IFF_UP | IFF_RUNNING)) && (current->address.address.ip.s_addr != 0)) { // V4 XXX
-            if ((best_prio == -1) || (best_prio > current->dev_prio)) {
+            if ((best_prio == -1) || (best_prio > (int)current->dev_prio)) {
                 best_prio = current->dev_prio;
                 best = current;
             } // First of given priority is what gets returned. May want to prefer wifi type?
@@ -454,7 +456,7 @@ void reconfigure_lisp_interfaces(void)
     if (!is_nat_complete(primary_interface) && (primary_interface->nat_type != NATOff)) {
         setup_nat(primary_interface);
     } else {
-        set_kernel_rloc(&primary_interface->address);
+        // Set source RLOC here if applicable
     }
 
     /*
@@ -475,13 +477,14 @@ void reconfigure_lisp_interfaces(void)
  * Detect if the default gateway has changed. If so, update our
  * special routes.
  */
-void check_default_gateway(timer *t, void *arg)
+int check_default_gateway(timer *t, void *arg)
 {
     if (primary_interface && get_current_default_gw(primary_interface)) {
         tuntap_install_default_routes();
         update_map_server_routes();
     }
     stop_timer(t);
+    return(0);
 }
 
 /*
@@ -721,7 +724,7 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
      * See if this is really a change. It's possible this is a notification
      * about our own change earlier, in which case, ignore it.
      */
-    if (gw && (gw->s_addr != primary_interface->default_gw.address.ip.s_addr) ||
+    if ((gw && (gw->s_addr != primary_interface->default_gw.address.ip.s_addr)) ||
             (primary_interface && (oif_index != primary_interface->if_index)) ||
             !src_is_set ||
             (pref_src && (pref_src->s_addr != lispd_config.eid_address_v4.address.ip.s_addr))) {
@@ -1132,13 +1135,8 @@ int setup_nat(lispd_if_t *intf)
     }
 
     /*
-     * Always use the local interface address as the source "rloc" in the kernel,
-     * so it will be translated.
+     * Set RLOC to use here in the future when a mechanism exists.
      */
-    if (!set_kernel_rloc(&intf->address)) {
-        log_msg(INFO, "Failed to set kernel RLOC to local address");
-        return(FALSE);
-    }
 
     if (!is_nat_complete(intf)) {
         start_timer(nat_detect_retry_timer, NAT_QUICK_CHECK_TIME, check_nat_status,
@@ -1196,7 +1194,7 @@ void update_map_server_routes(void)
  * To fix: make per interface timers or flags for
  * this process XXX
  */
-void check_nat_status(timer *t, void *arg)
+int check_nat_status(timer *t, void *arg)
 {
     lispd_if_t *intf = if_list;
     char requests_out = FALSE;
@@ -1222,6 +1220,7 @@ void check_nat_status(timer *t, void *arg)
         start_timer(nat_detect_retry_timer, NAT_PERIODIC_CHECK_TIME,  check_nat_status,
                     NULL);
     }
+    return(0);
 }
 
 /*

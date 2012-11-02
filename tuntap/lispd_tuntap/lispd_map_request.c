@@ -232,9 +232,6 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
     lisp_addr_t				        *src_addr;
     lisp_addr_t                                 *src_eid;
     uint16_t                                     src_eid_afi;
-    lispd_pkt_lcaf_t                            *lcaf;
-    lispd_pkt_lcaf_addr_t                       *lcaf_addr;
-    lispd_pkt_instance_lcaf_t                   *instance_lcaf;
     lisp_addr_t                                 *rloc_addr;
     lisp_addr_t                                  target;
     uint8_t				        *tmp, *packet;
@@ -246,14 +243,14 @@ uint8_t *build_map_request_pkt(lisp_addr_t              *eid_prefix,
 
     uint16_t					udpsum              = 0;
     uint16_t					eid_afi             = 0;
-    int                                         src_eid_len         = 0;
-    int						packet_len          = 0;
-    int						eid_len             = 0;
-    int						ip_len              = 0;
-    int						udp_len             = 0;
-    int						ip_header_len       = 0;
-    int						my_addr_len         = 0;
-    int						alen                = 0;
+    uint32_t                                    src_eid_len         = 0;
+    uint32_t                                    packet_len          = 0;
+    uint32_t                                    eid_len             = 0;
+    uint32_t					ip_len              = 0;
+    uint32_t                                    udp_len             = 0;
+    uint32_t                                    ip_header_len       = 0;
+    uint32_t                                    my_addr_len         = 0;
+    uint32_t                                    alen                = 0;
 
     eid_afi = get_lisp_afi(eid_prefix->afi, &eid_len);
 
@@ -524,7 +521,7 @@ uint64_t build_and_send_map_request(lisp_addr_t              *eid_prefix,
     if (!map_request_retry_timer) {
         map_request_retry_timer = create_timer("Map Request retry");
     }
-    start_timer(map_request_retry_timer, REQUEST_INTERVAL,  &retry_map_requests,
+    start_timer(map_request_retry_timer, REQUEST_INTERVAL,  retry_map_requests,
                 NULL);
     return(nonce);
 }
@@ -742,7 +739,7 @@ void handle_incoming_smr(lispd_pkt_map_request_t *pkt,
  * Run through the request cache and send map requests for any
  * elements that still remain.
  */
-void retry_map_requests(timer *tptr, void *arg)
+int retry_map_requests(timer *tptr, void *arg)
 {
     datacache_elt_t *elt;
     struct timeval   nowtime;
@@ -793,7 +790,7 @@ void retry_map_requests(timer *tptr, void *arg)
     if (datacache->head == NULL) {
         stop_timer(map_request_retry_timer);
     }
-    return;    
+    return(0);
 }
 
 /*
@@ -817,7 +814,7 @@ void process_map_request(lispd_pkt_map_request_t *pkt,
            inet_ntop(AF_INET, &sa->sin_addr.s_addr, addr_buf,
                      128));
 
-    log_msg(INFO, "   Flags: a: %d, map_data: %d, rp: %d, smr: %d, nonce %0xd\-%0xd",
+    log_msg(INFO, "   Flags: a: %d, map_data: %d, rp: %d, smr: %d, nonce %0xd - %0xd",
            pkt->authoritative, pkt->map_data_present,
            pkt->rloc_probe, pkt->solicit_map_request,
            pkt->nonce >> 32,
@@ -860,7 +857,7 @@ void process_map_request(lispd_pkt_map_request_t *pkt,
  * for expired (non-responsive) entries, and send out any that
  * are still outstanding.
  */
-void issue_rloc_probes(timer *probe_timer, void *arg)
+int issue_rloc_probes(timer *probe_timer, void *arg)
 {
     rloc_probe_item_t *iterator = get_rp_queue_head();
     rloc_probe_rloc_t *rloc;
@@ -923,6 +920,7 @@ void issue_rloc_probes(timer *probe_timer, void *arg)
     // Restart the timer
     start_timer(rloc_probe_timer, RLOC_PROBE_CHECK_INTERVAL,
                  issue_rloc_probes, NULL);
+    return(0);
 }
 
 /*
@@ -954,7 +952,7 @@ void schedule_solicit_map_requests(void)
     }
 
     log_msg(INFO, "Schedule start of SMR process in %d seconds", SMR_HOLDOFF_TIME);
-    start_timer(start_smr_timer, SMR_HOLDOFF_TIME,  &start_smr_traffic_monitor,
+    start_timer(start_smr_timer, SMR_HOLDOFF_TIME,  start_smr_traffic_monitor,
                 NULL);
 }
 

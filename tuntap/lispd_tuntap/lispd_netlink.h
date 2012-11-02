@@ -26,4 +26,4 @@ int install_database_mappings(void);
 int set_udp_ports(void);
 int update_locator_status(rloc_probe_item_t *item);
 void clear_map_cache(void);
-void start_smr_traffic_monitor(timer *, void *);
+int start_smr_traffic_monitor(timer *, void *);

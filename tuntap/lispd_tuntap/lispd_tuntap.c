@@ -32,7 +32,7 @@ char *tun_receive_buf = NULL;
 
 
 int tuntap_set_eids(void);
-int tuntap_create_tun() {
+int tuntap_create_tun(void) {
 
     struct ifreq ifr;
     int err, tmpsocket, flags = IFF_TUN | IFF_NO_PI; // Create a tunnel without persistence
@@ -127,7 +127,7 @@ static void *tun_recv(void *arg)
  * then inject into the tunnel so that the TCP/IP stack can continue
  * processing.
  */
-void tuntap_process_input_packet(char *packet_buf, int length, void *source)
+void tuntap_process_input_packet(uint8_t *packet_buf, int length, void *source)
 {
     lisp_input(packet_buf, length, source);
 }
@@ -142,21 +142,24 @@ void tuntap_process_output_packet(void)
     int nread;
     char ipversion;
 
-    nread = read(tun_receive_fd, tun_receive_buf, TunReceiveSize);
+    // Make sure we are initialized first.
+    if (tun_receive_buf) {
+        nread = read(tun_receive_fd, tun_receive_buf, TunReceiveSize);
 
-    log_msg(INFO, "In tuntap_process_output_packet");
+        log_msg(INFO, "In tuntap_process_output_packet");
 
-    ipversion = (tun_receive_buf[0] & 0xf0) >> 4;
-    switch (ipversion) {
+        ipversion = (tun_receive_buf[0] & 0xf0) >> 4;
+        switch (ipversion) {
 
-    case 4:
-        log_msg(INFO, "V4 output");
-        lisp_output4(tun_receive_buf, nread);
-        break;
-    case 6:
-        log_msg(INFO, "V6 output");
-        lisp_output6(tun_receive_buf, nread);
-        break;
+        case 4:
+            log_msg(INFO, "V4 output");
+            lisp_output4(tun_receive_buf, nread);
+            break;
+        case 6:
+            log_msg(INFO, "V6 output");
+            lisp_output6(tun_receive_buf, nread);
+            break;
+        }
     }
 }
 

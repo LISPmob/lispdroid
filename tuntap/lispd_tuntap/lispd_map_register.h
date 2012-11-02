@@ -12,4 +12,4 @@
 
 #define REGISTER_INTERVAL 60  // Seconds
 
-void map_register(timer *t, void *arg);
+int map_register(timer *t, void *arg);

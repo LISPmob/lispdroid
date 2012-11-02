@@ -285,7 +285,7 @@ int retrieve_lisp_msg(int s, uint8_t *packet, void *from, int afi)
     char                addr_buf[128];
     int			fromlen4 = sizeof(struct sockaddr_in);
     int			fromlen6 = sizeof(struct sockaddr_in6);
-    int                 recv_len;
+    int                 recv_len = 0;
 
     switch(afi) {
     case AF_INET:

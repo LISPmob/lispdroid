@@ -9,6 +9,7 @@
  * Copyright 2010-2011 Cisco Systems
  */
 #include "lispd.h"
+#include "lispd_util.h"
 #include "lispd_config.h"
 #include "lispd_db.h"
 #include "lispd_timers.h"
@@ -57,9 +58,8 @@ patricia_node_t *make_and_lookup_network(int afi, void *addr, int mask_len)
 {
     struct in_addr	*sin;
     struct in6_addr	*sin6;
-    int			 bitlen;
-    prefix_t		*prefix;
-    patricia_node_t	*node;
+    prefix_t		*prefix = NULL;
+    patricia_node_t	*node = NULL;
 
     if ((node = malloc(sizeof(patricia_node_t))) == NULL) {
         log_msg(INFO, "can't allocate patrica_node_t");
@@ -84,8 +84,12 @@ patricia_node_t *make_and_lookup_network(int afi, void *addr, int mask_len)
         node = patricia_lookup(AF6_database, prefix);
         break;
     default:
-        free(node);
-        free(prefix);
+        if (node) {
+            free(node);
+        }
+        if (prefix) {
+            free(prefix);
+        }
         log_msg(INFO, "Unknown afi (%d) when allocating prefix_t", afi);
         return(NULL);
     }
