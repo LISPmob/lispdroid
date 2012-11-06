@@ -751,7 +751,8 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
 void process_interface_notification(void)
 {
     char buffer[IF_MSG_SIZE];
-    uint32_t  len, payload_len;
+    int len;
+    uint32_t payload_len;
     struct nlmsghdr *nlh;
     struct ifaddrmsg *ifa;
     struct ifinfomsg *ifi;
@@ -760,7 +761,7 @@ void process_interface_notification(void)
     nlh = (struct nlmsghdr *)buffer;
     while ((len = recv(rtnetlink_fd, nlh, IF_MSG_SIZE, 0)) > 0)
     {
-        for (; (NLMSG_OK(nlh, len)) && (nlh->nlmsg_type != NLMSG_DONE); nlh = NLMSG_NEXT(nlh, len))
+        for (; (NLMSG_OK(nlh, (uint32_t)len)) && (nlh->nlmsg_type != NLMSG_DONE); nlh = NLMSG_NEXT(nlh, len))
         {
             switch (nlh->nlmsg_type) {
             case RTM_NEWADDR:
