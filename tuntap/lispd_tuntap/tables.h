@@ -12,6 +12,7 @@
 
 #include "lispd.h"
 #include "lispd_timers.h"
+#include "patricia/patricia.h"
 
 #define TRAFFIC_MON_PERIOD (15) // in seconds
 

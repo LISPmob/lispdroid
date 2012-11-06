@@ -16,6 +16,7 @@
 #include "lispd_if.h"
 #include "packettypes.h"
 #include "lispd_config.h"
+#include "lispd_netlink.h"
 #include "tables.h"
 
 //#define DEBUG

@@ -291,12 +291,13 @@ int lookup_eid_db_v6_exact(lisp_addr_t eid_prefix, int prefixlen, lisp_database_
  *
  * Called when the timer associated with an EID entry expires.
  */
-void eid_entry_expiration(timer *t, void *arg)
+int eid_entry_expiration(timer *t, void *arg)
 {
   lisp_map_cache_t *entry = (lisp_map_cache_t *)arg;
   
   log_msg(INFO,  "Got expiration for EID %pi4", &entry->eid_prefix.address.ip.s_addr);
   del_eid_cache_entry(entry->eid_prefix, entry->eid_prefix_length);
+  return(0);
 }
 
 /*
@@ -305,7 +306,7 @@ void eid_entry_expiration(timer *t, void *arg)
  * Called when the sampling timer expires, send a sample
  * of the EID cache entry to lispd.
  */
-void eid_entry_probe_sample(timer *t, void *arg)
+int eid_entry_probe_sample(timer *t, void *arg)
 {
     lisp_map_cache_t *entry = (lisp_map_cache_t *)arg;
 
@@ -316,9 +317,9 @@ void eid_entry_probe_sample(timer *t, void *arg)
     /*
      * Restart the timer
      */
-    start_timer(t, entry->sampling_interval, entry->sampling_interval, arg);
+    //start_timer(t, entry->sampling_interval, entry->sampling_interval, arg);
     // XXX Replace with mutex spin_unlock_bh(&table_lock);
-    return;
+    return(0);
 }
 
 /*
@@ -327,7 +328,7 @@ void eid_entry_probe_sample(timer *t, void *arg)
  * Called when the sampling timer expires, send a sample
  * of the EID cache entry to lispd.
  */
-void eid_entry_smr_sample(timer *t, void *arg)
+int eid_entry_smr_sample(timer *t, void *arg)
 {
     lisp_map_cache_t *entry = (lisp_map_cache_t *)arg;
 
@@ -337,7 +338,7 @@ void eid_entry_smr_sample(timer *t, void *arg)
    //     send_cache_sample_notification(entry, SMRSample);
     }
     // XXX Replace with mutex spin_unlock_bh(&table_lock);
-    return;
+    return(0);
 }
 
 /*
@@ -766,7 +767,7 @@ void add_eid_cache_entry(lisp_eid_map_msg_t *entry)
       * Start the sampling timer
       */
       if (entry->sampling_interval) {
-          start_timer(&map_entry->probe_timer, entry->sampling_interval, &eid_entry_probe_sample, (void *)map_entry);
+          start_timer(&map_entry->probe_timer, entry->sampling_interval, eid_entry_probe_sample, (void *)map_entry);
           log_msg(INFO,  " Started probe sampling timer at %d second interval", entry->sampling_interval);
       }
       gettimeofday(&timestamp, NULL);
@@ -1083,7 +1084,6 @@ void teardown_trees(void)
     log_msg(INFO,  "Destroyed ipv6 EID db\n");
     // XXX Replace with mutex spin_unlock_bh(&table_lock);
 
-    Cleanup_Patricia();
     log_msg(INFO,  "Destroyed patricia structures\n");
 
 }

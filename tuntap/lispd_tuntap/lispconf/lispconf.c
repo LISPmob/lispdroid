@@ -411,7 +411,7 @@ int process_list_responses(void)
     lisp_cache_address_list_t *addr_list;
     int retval;
     int i;
-    char *formatted_eid;
+    char *formatted_eid = NULL;
     char buf[256];
 
     if (!cmd) {
@@ -648,7 +648,7 @@ int send_print_command(struct gengetopt_args_info *args_info)
     int retval;
     int retries = 2;
     lisp_addr_t eid_prefix;
-    int eid_prefix_len;
+    int eid_prefix_len = 0;
     int eid_af;
     char *token;
     int cache = true;

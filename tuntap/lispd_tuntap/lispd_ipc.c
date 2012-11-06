@@ -437,7 +437,7 @@ int build_eid_list_entry(uint32_t *count, lisp_cmd_t **cmd,
                           lisp_addr_t *addr)
 {
     int err;
-    int max_entries = (MaxIPCCommandLen - (sizeof(lisp_cmd_t) + sizeof(lisp_cache_address_list_t))) /
+    uint32_t max_entries = (MaxIPCCommandLen - (sizeof(lisp_cmd_t) + sizeof(lisp_cache_address_list_t))) /
             sizeof(lisp_addr_t);
     lisp_cache_address_list_t *eidlist = (lisp_cache_address_list_t *)(*cmd)->val;
 

@@ -45,6 +45,7 @@ void dump_map_server(lispd_map_server_list_t *ms);
 void dump_map_cache(void);
 void dump_tree_elt(lispd_locator_chain_t *locator_chain);
 void dump_tree(int afi, patricia_tree_t *tree);
+void dump_message(char *msg, int length);
 void debug_installed_database_entry(lispd_locator_chain_t *locator_chain,
                                     lispd_locator_chain_elt_t *db_entry);
 void print_hmac(uchar *hmac, int len);

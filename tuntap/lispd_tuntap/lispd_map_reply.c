@@ -13,9 +13,11 @@
 #include "lispd_netlink.h"
 #include "lispd_db.h"
 #include "lispd_map_reply.h"
+#include "lispd_map_register.h"
 #include "lispd_ipc.h"
 #include "lispd_config.h"
 #include "lispd_util.h"
+#include "cksum.h"
 
 /*
  * build_cache_msg_eid_portion()
@@ -422,13 +424,13 @@ lispd_pkt_map_reply_t *build_map_reply(uint32_t probe_source, int probe,
     lisp_addr_t               loc_addr;
     lispd_locator_chain_elt_t *locator_chain_elt;
     lispd_if_t                *intf;
-    int                        total_loc_length   = 0;
-    int                        eid_afi           = 0;
-    int                        pkt_length        = 0;
-    int                        addr_len          = 0;
-    int                        afi_len           = 0;
-    int                        loc_count         = 0;
-    int                        loc_afi           = 0;
+    uint32_t                   total_loc_length   = 0;
+    uint32_t                   eid_afi           = 0;
+    uint32_t                   pkt_length        = 0;
+    uint32_t                   addr_len          = 0;
+    uint32_t                   afi_len           = 0;
+    uint32_t                   loc_count         = 0;
+    uint32_t                   loc_afi           = 0;
 
     /*
      * Like in map registers, assume one record with
@@ -488,7 +490,7 @@ lispd_pkt_map_reply_t *build_map_reply(uint32_t probe_source, int probe,
      * skip over the fixed part and eid prefix, and build
      * the locators
      */
-    loc_rec = (lispd_pkt_mapping_record_locator_t *)
+    loc_rec = (lispd_pkt_map_reply_locator_record_t *)
         CO(eid_rec,(sizeof(lispd_pkt_mapping_record_t) + addr_len));
 
     while (locator_chain_elt) {
@@ -537,7 +539,7 @@ lispd_pkt_map_reply_t *build_map_reply(uint32_t probe_source, int probe,
          */
         if ((addr_len = copy_addr((void *)
                              CO(loc_rec,
-                                sizeof(lispd_pkt_mapping_record_locator_t)),
+                                sizeof(lispd_pkt_map_reply_locator_record_t)),
                              &(loc_addr),
                              loc_afi,
                              0)) == 0) {
@@ -551,8 +553,8 @@ lispd_pkt_map_reply_t *build_map_reply(uint32_t probe_source, int probe,
          * get the next locator in the chain and wind
          * loc_rec to the right place
          */
-        loc_rec = (lispd_pkt_mapping_record_locator_t *)
-            CO(loc_rec, (sizeof(lispd_pkt_mapping_record_locator_t) + addr_len));
+        loc_rec = (lispd_pkt_map_reply_locator_record_t *)
+            CO(loc_rec, (sizeof(lispd_pkt_map_reply_locator_record_t) + addr_len));
 
         locator_chain_elt = locator_chain_elt->next;
     }
@@ -600,7 +602,7 @@ void send_map_reply(lispd_pkt_map_request_t *pkt,
         }
     }
 
-    itr_rloc = CO(pkt, offset);
+    itr_rloc = (lispd_pkt_map_request_itr_rloc_t *)CO(pkt, offset);
     for (i = 0; i < pkt->additional_itr_rloc_count + 1; i++) {
         offset += sizeof(lispd_pkt_map_request_itr_rloc_t);
         if (lisp2inetafi(ntohs(itr_rloc->afi)) == AF_INET) {
@@ -608,7 +610,7 @@ void send_map_reply(lispd_pkt_map_request_t *pkt,
         } else {
             offset += sizeof(struct in6_addr);
         }
-        itr_rloc = CO(pkt, offset);
+        itr_rloc = (lispd_pkt_map_request_itr_rloc_t *)CO(pkt, offset);
     }
 
     rec = (lispd_pkt_map_request_eid_prefix_record_t *)CO(pkt, offset);
@@ -637,7 +639,7 @@ void send_map_reply(lispd_pkt_map_request_t *pkt,
     }
 
     reply_pkt = build_map_reply(source->sin_addr.s_addr, pkt->rloc_probe,
-                                loc_chain, &pkt->nonce, &len);
+                                loc_chain, (char *)&pkt->nonce, &len);
 
     if (!reply_pkt) {
         log_msg(INFO,
@@ -649,8 +651,8 @@ void send_map_reply(lispd_pkt_map_request_t *pkt,
      * Build the outer IP header ourselves, this doesn't
      * go using LISP, so we don't want the EID used as the source.
      */
-    iphdr = malloc(len + sizeof(struct ip) + sizeof(struct udphdr));
-    udphdr = CO(iphdr, sizeof(struct ip));
+    iphdr = (struct ip *)malloc(len + sizeof(struct ip) + sizeof(struct udphdr));
+    udphdr = (struct udphdr *)CO(iphdr, sizeof(struct ip));
     ptr = CO(udphdr, sizeof(struct udphdr));
     memcpy(ptr, (char *)reply_pkt, len);
     free(reply_pkt);
@@ -700,7 +702,7 @@ void send_map_reply(lispd_pkt_map_request_t *pkt,
         return;
     }
 
-    if (nbytes != (len + sizeof(struct udphdr) + sizeof(struct ip))) {
+    if (nbytes != (int)(len + sizeof(struct udphdr) + sizeof(struct ip))) {
         log_msg(INFO,
                "send_map_request: nbytes (%d) != packet_len (%d)\n",
                nbytes, len);

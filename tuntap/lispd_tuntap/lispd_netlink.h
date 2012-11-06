@@ -27,3 +27,5 @@ int set_udp_ports(void);
 int update_locator_status(rloc_probe_item_t *item);
 void clear_map_cache(void);
 int start_smr_traffic_monitor(timer *, void *);
+void handle_cache_miss(lisp_addr_t eid);
+

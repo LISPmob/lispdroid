@@ -751,7 +751,7 @@ void handle_route_change(struct rtmsg *rtm, unsigned int msg_len)
 void process_interface_notification(void)
 {
     char buffer[IF_MSG_SIZE];
-    int  len, payload_len;
+    uint32_t  len, payload_len;
     struct nlmsghdr *nlh;
     struct ifaddrmsg *ifa;
     struct ifinfomsg *ifi;
@@ -760,7 +760,7 @@ void process_interface_notification(void)
     nlh = (struct nlmsghdr *)buffer;
     while ((len = recv(rtnetlink_fd, nlh, IF_MSG_SIZE, 0)) > 0)
     {
-        for (;(NLMSG_OK (nlh, len)) && (nlh->nlmsg_type != NLMSG_DONE); nlh = NLMSG_NEXT(nlh, len))
+        for (; (NLMSG_OK(nlh, len)) && (nlh->nlmsg_type != NLMSG_DONE); nlh = NLMSG_NEXT(nlh, len))
         {
             switch (nlh->nlmsg_type) {
             case RTM_NEWADDR:
@@ -992,13 +992,13 @@ int add_loopback_address_v6(lisp_addr_t *addr)
                                   sizeof(struct in6_addr));
     nlh->nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_REPLACE;
     nlh->nlmsg_type = RTM_NEWADDR;
-    ifa = sndbuf + sizeof(struct nlmsghdr);
+    ifa = (struct ifaddrmsg *)(sndbuf + sizeof(struct nlmsghdr));
 
     ifa->ifa_prefixlen = 128;
     ifa->ifa_family = AF_INET6;
     ifa->ifa_index  = loindex;
     ifa->ifa_scope = RT_SCOPE_HOST;
-    rta = sndbuf + sizeof(struct nlmsghdr) + sizeof(struct ifaddrmsg);
+    rta = (struct rtattr *)(sndbuf + sizeof(struct nlmsghdr) + sizeof(struct ifaddrmsg));
     rta->rta_type = IFA_LOCAL;
 
     rta->rta_len = sizeof(struct rtattr) + sizeof(struct in6_addr);
@@ -1293,7 +1293,7 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
     uint32_t                reply_addr;     // V4 Only for now
     char                    addr_buf[128];
 
-    reply = pkt->data;
+    reply = (lispd_pkt_echo_reply_t *)pkt->data;
 
     if (!pkt->echo_reply) {
         log_msg(INFO, "  Echo requests not supported");
@@ -1313,7 +1313,7 @@ int process_lisp_echo_reply(lispd_pkt_echo_t *pkt, uint16_t sport)
                 afi, lcaf->type);
         if (lcaf->type != LISP_LCAF_NAT) {
             log_msg(ERROR, "    Unsupported LISP LCAF type %d", lcaf->type);
-            dump_message(reply, (sizeof(lispd_pkt_echo_reply_t) + sizeof(lispd_pkt_lcaf_t)
+            dump_message((char *)reply, (sizeof(lispd_pkt_echo_reply_t) + sizeof(lispd_pkt_lcaf_t)
                          + sizeof(lispd_pkt_nat_lcaf_t)) * 2);
             return(FALSE);
         }

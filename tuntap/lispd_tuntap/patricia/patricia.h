@@ -96,6 +96,11 @@ ascii2prefix (int family, char *string);
 
 patricia_node_t *
 make_and_lookup (patricia_tree_t *tree, int afi, char *string);
+patricia_node_t *
+make_and_lookup_v4 (patricia_tree_t *tree, uint32_t prefixkey, int prefixlen);
+patricia_node_t *
+make_and_lookup_v6 (patricia_tree_t *tree, struct in6_addr prefixkey,
+                 int prefixlen);
 
 /* } */
 
