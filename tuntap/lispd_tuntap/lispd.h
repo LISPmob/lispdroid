@@ -1,14 +1,30 @@
 /*
  *	lispd.h --
  *
- *	Definitions for lispd
- #
+ *	Definitions for lispd main module.
  *
- *	David Meyer
- *	dmm@1-4-5.net
- *	Fri Apr 16 13:17:58 2010
+ * Copyright (C) 2009-2012 Cisco Systems, Inc, 2012. All rights reserved.
  *
- *	$Header: /usr/local/src/lispd/RCS/lispd.h,v 1.3 2010/04/21 20:29:42 dmm Exp $
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ *
+ * Please send any bug reports or fixes you make to the email address(es):
+ *    LISP-MN developers <devel@lispmob.org>
+ *
+ * Written or modified by:
+ *    Chris White       <chris@logicalelegance.com>
+ *    David Meyer       <dmm@cisco.com>
  *
  */
 #pragma once
@@ -63,9 +79,6 @@
  *	lispd constants
  */
 #define	EVER			;;
-#define	LISPD			"lispd"
-#define PID_FILE		"/var/run/lispd.pid"
-#define	MAX_IP_PACKET		4096
 
 /*
  *	misc parameters
@@ -74,16 +87,8 @@
 #define	PACKED				__attribute__ ((__packed__))
 #define	uchar				u_char
 
-#define GOOD				1
-#define BAD				0
 #define	MAX_IP_PACKET			4096
-#define	MIN_EPHEMERAL_PORT		32768
-#define	MAX_EPHEMERAL_PORT		65535
 
-#define	DEFAULT_MAP_REQUEST_RETRIES	3
-#define	DEFAULT_MAP_REGISTER_TIMEOUT	10	/* minutes */
-#define DEFAULT_DATA_CACHE_TTL		60	/* seconds */
-#define DEFAULT_SELECT_TIMEOUT		1	/* s */
 #define TRUE 1
 #define FALSE 0
 

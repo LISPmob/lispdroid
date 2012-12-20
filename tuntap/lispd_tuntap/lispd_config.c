@@ -2,21 +2,41 @@
  *	Handle lispd command line and config file
  *
  *	Parse command line args using gengetopt.
- *	Handle config file wiht libconfuse.
+ *	Handle config file with libconfuse.
  *
- *	David Meyer
- *	dmm@1-4-5.net
- *	Fri Apr 16 13:38:35 2010
+*
+ * Copyright (C) 2009-2012 Cisco Systems, Inc, 2012. All rights reserved.
  *
- *	$Header: /usr/local/src/lispd/RCS/lispd_config.c,v 1.16 2010/04/21 23:32:08 root Exp $
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ *
+ * Please send any bug reports or fixes you make to the email address(es):
+ *    LISP-MN developers <devel@lispmob.org>
+ *
+ * Written or modified by:
+ *    Chris White       <chris@logicalelegance.com>
+ *    David Meyer       <dmm@cisco.com>
  *
  */
+
 #include <sys/system_properties.h>
 #include <cutils/properties.h>
 #include "lispd_packets.h"
 #include "lispd_config.h"
 #include "lispd_util.h"
 #include "lispd_if.h"
+#include "lispd_map_register.h"
 #include "lispd_tuntap.h"
 
 lispd_config_t lispd_config;
